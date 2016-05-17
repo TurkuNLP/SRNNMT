@@ -22,7 +22,7 @@ class Matrices:
     def __init__(self,minibatch_size,max_sent_len):
         self.source_chars=np.zeros((minibatch_size,max_sent_len),np.int)
         self.target_chars=np.zeros((minibatch_size,max_sent_len),np.int)
-        self.targets=np.zeros((minibatch_size,),np.float32)
+        self.targets=np.zeros((minibatch_size,1),np.float32)
         self.matrix_dict={"source_chars":self.source_chars,"target_chars":self.target_chars}
 
     def wipe(self):
@@ -121,6 +121,7 @@ def fill_batch(ms,vs,data_iterator):
         ms.targets[row]=target
         row+=1
         if row==batchsize:
+#            print(ms.matrix_dict, ms.targets)
             yield ms.matrix_dict, ms.targets
             row=0
             ms.wipe()

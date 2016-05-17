@@ -1,5 +1,5 @@
 from keras.models import Sequential, Graph, Model
-from keras.layers import Dense, Dropout, Activation, Merge, Input, merge
+from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten
 # from keras.layers.core import Masking
 from keras.layers.recurrent import GRU
 # from keras.optimizers import SGD
@@ -78,7 +78,7 @@ trg_f_name="data/JRC-Acquis.en-fi.en"
 vs=data_dense.read_vocabularies(src_f_name,trg_f_name,False)
 vs.trainable=False
 
-minibatch_size=5000
+minibatch_size=50
 max_sent_len=500
 vec_size=100
 gru_width=100
@@ -102,11 +102,15 @@ src_gru_out=src_gru(src_vec)
 trg_gru_out=trg_gru(trg_vec)
 #Output as a single vector, internal states of GRUs who have now read the data
 merged_out=merge([src_gru_out,trg_gru_out],mode='cos',dot_axes=1)
+flatten=Flatten()
+merged_out_flat=flatten(merged_out)
 
-model=Model(input=[src_inp,trg_inp], output=merged_out)
+model=Model(input=[src_inp,trg_inp], output=merged_out_flat)
 model.compile(optimizer='adam',loss='mse')
 
 inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name,max_iterations=None)
 batch_iter=data_dense.fill_batch(ms,vs,inf_iter)
+import pdb
+#pdb.set_trace()
 model.fit_generator(batch_iter,2*len(inf_iter.data),10) #2* because we also have the negative examples
 
