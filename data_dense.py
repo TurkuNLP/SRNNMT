@@ -22,7 +22,7 @@ class Matrices:
     def __init__(self,minibatch_size,max_sent_len):
         self.source_chars=np.zeros((minibatch_size,max_sent_len),np.int)
         self.target_chars=np.zeros((minibatch_size,max_sent_len),np.int)
-        self.targets=np.zeros((minibatch_size,),np.float)
+        self.targets=np.zeros((minibatch_size,),np.float32)
         self.matrix_dict={"source_chars":self.source_chars,"target_chars":self.target_chars}
 
     def wipe(self):
@@ -48,27 +48,34 @@ def iter_data(training_source,training_target):
         for src_line, trg_line in zip(src,trg):
             yield src_line, trg_line
 
-def infinite_iter_data(training_source,training_target,max_iterations=None):
-    """
-    Returns randomized training pairs as ((source_sent,target_sent),-1/+1)
-    """
-    data=list(iter_data(training_source,training_target)) #must memorize
-    positive_indices=list(zip(range(len(data)),range(len(data)))) #[(0,0),(1,1),(2,2)...]  #indices of source,target
-    counter=0
-    while True:
-        indices=list(range(len(data)))
-        random.shuffle(indices)
-        negative_indices=list(enumerate(indices)) #[(0,326543),(1,96457),...]
-        all_examples=positive_indices+negative_indices
-        random.shuffle(all_examples)
-        for src_idx,trg_idx in all_examples:
-            if src_idx==trg_idx:
-                yield data[src_idx],1.0
-            else:
-                yield (data[src_idx][0],data[trg_idx][1]),-1.0
-        counter+=1
-        if max_iterations is not None and counter==max_iterations:
-            break
+class InfiniteDataIterator:
+
+    def __init__(self,training_source,training_target,max_iterations=None):
+        self.training_source=training_source
+        self.training_target=training_target
+        self.max_iterations=max_iterations
+        self.data=list(iter_data(self.training_source,self.training_target)) #must memorize
+                
+    def __iter__(self):
+        """
+        Returns randomized training pairs as ((source_sent,target_sent),-1/+1)
+        """
+        positive_indices=list(zip(range(len(self.data)),range(len(self.data)))) #[(0,0),(1,1),(2,2)...]  #indices of source,target
+        counter=0
+        while True:
+            indices=list(range(len(self.data)))
+            random.shuffle(indices) #shuffled indices
+            negative_indices=list(enumerate(indices)) #[(0,326543),(1,96457),...]
+            all_examples=positive_indices+negative_indices
+            random.shuffle(all_examples) 
+            for src_idx,trg_idx in all_examples: #index where I should take the source sentence, index where I should take the target sentence
+                if src_idx==trg_idx: #same -> positive example
+                    yield self.data[src_idx],1.0
+                else: #different -> negative example
+                    yield (self.data[src_idx][0],self.data[trg_idx][1]),-1.0
+            counter+=1
+            if self.max_iterations is not None and counter==self.max_iterations:
+                break
 
 def read_vocabularies(training_source,training_target,force_rebuild):
     voc_fname=training_source+"-vocabularies.pickle"
@@ -76,7 +83,7 @@ def read_vocabularies(training_source,training_target,force_rebuild):
         #make sure no feature has 0 index
         logging.info("Making one pass to gather vocabulary")
         vs=Vocabularies()
-        for (sent_src,sent_target) in infinite_iter_data(training_source,training_target,max_iterations=1): #Make a single pass: # (source_sentence, target_sentence)
+        for (sent_src,sent_target),_ in InfiniteDataIterator(training_source,training_target,max_iterations=1): #Make a single pass: # (source_sentence, target_sentence)
             for c in itertools.filterfalse(str.isspace,sent_src):
                 vs.get_id(c,vs.source_chars)
             for c in itertools.filterfalse(str.isspace,sent_target):
@@ -129,9 +136,3 @@ if __name__=="__main__":
         print(minibatch["target_chars"])
         print(targets)
         break
-
-#     raw_data=infinite_iter_data("train_data/IWSLT15.en-fr.data.filtered.withids")
-# #    raw_data=infinite_iter_data("train_data/NCv9.en-fr.data.filtered.withids",shuffle=True)
-#     for minibatch in fill_batch(ms,vs,raw_data):
-#         pass
-
