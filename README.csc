@@ -4,7 +4,7 @@ login: taito-gpu.csc.fi
 
 # Basic setup only needs to be done once
 
-module load python-env/3.4.0
+module load python-env/3.4.1
 pip3 install --user virtualenv
 
 # create the virtual env
