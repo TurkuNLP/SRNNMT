@@ -35,7 +35,8 @@ class CustomCallback(Callback):
         #     self.dev_labels_text.append(index2label[np.argmax(l)])
 
     def on_epoch_end(self, epoch, logs={}):
-        print logs
+        pass
+        #print logs
 
         # corr=0
         # tot=0
