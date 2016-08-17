@@ -14,7 +14,7 @@ from keras.layers.embeddings import Embedding
 import sys
 import math
 # from svm_pronouns import iter_data
-# import json
+import json
 # import copy
 # from data_dense import *
 # from sklearn.metrics import recall_score
@@ -88,29 +88,36 @@ vs.trainable=False
 
 
 #Input: sequences representing the source and target sentences
+
 #Inputs: list of one Input per N-gram size
 src_inp=[Input(shape=(max_sent_len,), name="source_ngrams_{}".format(N), dtype="int32") for N in ngrams]
 trg_inp=[Input(shape=(max_sent_len,), name="target_ngrams_{}".format(N), dtype="int32") for N in ngrams]
+
 #Embeddings: list of one Embedding per input
-src_emb=[Embedding(len(vs.source_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True) for N in ngrams]
-trg_emb=[Embedding(len(vs.target_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True) for N in ngrams]
+src_emb=[Embedding(len(vs.source_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True, name="source_embedding_{}".format(N)) for N in ngrams]
+trg_emb=[Embedding(len(vs.target_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True, name="target_embedding_{}".format(N)) for N in ngrams]
+
 #Vectors: list of one embedded vector per input-embedding pair
 src_vec=[src_emb_n(src_inp_n) for src_inp_n,src_emb_n in zip(src_inp,src_emb)]
 trg_vec=[trg_emb_n(trg_inp_n) for trg_inp_n,trg_emb_n in zip(trg_inp,trg_emb)]
+
 #RNNs: list of one GRU per ngram size
-src_gru=[GRU(gru_width) for N in ngrams]
-trg_gru=[GRU(gru_width) for N in ngrams]
+src_gru=[GRU(gru_width,name="source_GRU_{}".format(N)) for N in ngrams]
+trg_gru=[GRU(gru_width,name="target_GRU_{}".format(N)) for N in ngrams]
 src_gru_out=[src_gru_n(src_vec_n) for src_vec_n,src_gru_n in zip(src_vec,src_gru)]
 trg_gru_out=[trg_gru_n(trg_vec_n) for trg_vec_n,trg_gru_n in zip(trg_vec,trg_gru)]
+
 #Dense on top of every GRU
-src_dense=[Dense(gru_width) for N in ngrams]
-trg_dense=[Dense(gru_width) for N in ngrams]
+src_dense=[Dense(gru_width,name="source_dense_{}".format(N)) for N in ngrams]
+trg_dense=[Dense(gru_width,name="target_dense_{}".format(N)) for N in ngrams]
 src_dense_out=[src_dense_n(src_gru_out_n) for src_gru_out_n,src_dense_n in zip(src_gru_out,src_dense)]
 trg_dense_out=[trg_dense_n(trg_gru_out_n) for trg_gru_out_n,trg_dense_n in zip(trg_gru_out,trg_dense)]
+
 #Catenated these dense layers
 src_merged_out=merge(src_dense_out,mode='concat', concat_axis=1)
 trg_merged_out=merge(trg_dense_out,mode='concat', concat_axis=1)
-#and cosine between the source and target side
+
+#...and cosine between the source and target side
 merged_out=merge([src_merged_out,trg_merged_out],mode='cos',dot_axes=1)
 flatten=Flatten()
 merged_out_flat=flatten(merged_out)
@@ -123,8 +130,17 @@ batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter,ngrams)
 
 # import pdb
 # pdb.set_trace()
+
+# save model json
+model_json = model.to_json()
+with open("keras_model.json", "w") as json_file:
+    json_file.write(model_json)
+
+# callback to save weights after each epoch
+save_cb=ModelCheckpoint(filepath="keras_weights.h5", monitor='loss', verbose=1, save_best_only=False, mode='auto')
+
 samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size)*minibatch_size
-model.fit_generator(batch_iter,samples_per_epoch,10) #2* because we also have the negative examples
+model.fit_generator(batch_iter,samples_per_epoch,10,callbacks=[save_cb]) #2* because we also have the negative examples
 
 #counter=1
 #while True:
