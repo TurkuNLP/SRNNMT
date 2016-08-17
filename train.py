@@ -14,7 +14,7 @@ from keras.layers.embeddings import Embedding
 import sys
 import math
 # from svm_pronouns import iter_data
-# import json
+import json
 # import copy
 # from data_dense import *
 # from sklearn.metrics import recall_score
@@ -91,19 +91,19 @@ ms=data_dense.Matrices(minibatch_size,max_sent_len)
 src_inp=Input(shape=(max_sent_len,), name="source_chars", dtype="int32")
 trg_inp=Input(shape=(max_sent_len,), name="target_chars", dtype="int32")
 #Embeddings
-src_emb=Embedding(len(vs.source_chars), vec_size, input_length=max_sent_len, mask_zero=True)
-trg_emb=Embedding(len(vs.target_chars), vec_size, input_length=max_sent_len, mask_zero=True)
+src_emb=Embedding(len(vs.source_chars), vec_size, input_length=max_sent_len, mask_zero=True, name="src_embedding")
+trg_emb=Embedding(len(vs.target_chars), vec_size, input_length=max_sent_len, mask_zero=True, name="trg_embedding")
 #Vectors
 src_vec=src_emb(src_inp)
 trg_vec=trg_emb(trg_inp)
 #RNNs
-src_gru=GRU(gru_width)
-trg_gru=GRU(gru_width)
+src_gru=GRU(gru_width, name="src_gru")
+trg_gru=GRU(gru_width, name="trg_gru")
 src_gru_out=src_gru(src_vec)
 trg_gru_out=trg_gru(trg_vec)
 #Dense on top
-src_dense=Dense(gru_width)
-trg_dense=Dense(gru_width)
+src_dense=Dense(gru_width, name="src_dense")
+trg_dense=Dense(gru_width, name="trg_dense")
 src_dense_out=src_dense(src_gru_out)
 trg_dense_out=trg_dense(trg_gru_out)
 #Output as a single vector, internal states of GRUs who have now read the data
@@ -122,8 +122,17 @@ batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter)
 
 # import pdb
 # pdb.set_trace()
+
+# save model json
+model_json = model.to_json()
+with open("keras_model.json", "w") as json_file:
+    json_file.write(model_json)
+
+# callback to save weights after each epoch
+save_cb=ModelCheckpoint(filepath="keras_weights.h5", monitor='loss', verbose=1, save_best_only=False, mode='auto')
+
 samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size)*minibatch_size
-model.fit_generator(batch_iter,samples_per_epoch,10) #2* because we also have the negative examples
+model.fit_generator(batch_iter,samples_per_epoch,10,callbacks=[save_cb]) #2* because we also have the negative examples
 
 #counter=1
 #while True:
