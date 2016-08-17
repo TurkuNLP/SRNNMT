@@ -84,9 +84,9 @@ def read_vocabularies(training_source,training_target,force_rebuild):
         logging.info("Making one pass to gather vocabulary")
         vs=Vocabularies()
         for (sent_src,sent_target),_ in InfiniteDataIterator(training_source,training_target,max_iterations=1): #Make a single pass: # (source_sentence, target_sentence)
-            for c in itertools.filterfalse(str.isspace,sent_src):
+            for c in sent_src:#itertools.filterfalse(str.isspace,sent_src):
                 vs.get_id(c,vs.source_chars)
-            for c in itertools.filterfalse(str.isspace,sent_target):
+            for c in sent_target:#itertools.filterfalse(str.isspace,sent_target):
                 vs.get_id(c,vs.target_chars)
         logging.info("Saving new vocabularies to "+voc_fname)
         save_vocabularies(vs,voc_fname)
@@ -105,11 +105,13 @@ def load_vocabularies(f_name):
         return pickle.load(f)
 
 
-def fill_batch(ms,vs,data_iterator):
+def fill_batch(minibatch_size,max_sent_len,vs,data_iterator):
     """ Iterates over the data_iterator and fills the index matrices with fresh data
         ms = matrices, vs = vocabularies
     """
 
+
+    ms=Matrices(minibatch_size,max_sent_len)
     #matrix_dict=dict(zip(ms._fields,ms)) #the named tuple as dict, what we return
     batchsize,max_sentence_len=ms.source_chars.shape
     row=0
@@ -124,7 +126,7 @@ def fill_batch(ms,vs,data_iterator):
 #            print(ms.matrix_dict, ms.targets)
             yield ms.matrix_dict, ms.targets
             row=0
-            ms.wipe()
+            ms=Matrices(minibatch_size,max_sent_len)
 
 
 if __name__=="__main__":

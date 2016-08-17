@@ -11,7 +11,8 @@ from keras.layers.embeddings import Embedding
 # import codecs
 # import numpy as np
 # import gzip
-# import sys
+import sys
+import math
 # from svm_pronouns import iter_data
 # import json
 # import copy
@@ -34,8 +35,7 @@ class CustomCallback(Callback):
         #     self.dev_labels_text.append(index2label[np.argmax(l)])
 
     def on_epoch_end(self, epoch, logs={}):
-        pass
-        # print logs
+        print logs
 
         # corr=0
         # tot=0
@@ -78,10 +78,10 @@ trg_f_name="data/JRC-Acquis.en-fi.en"
 vs=data_dense.read_vocabularies(src_f_name,trg_f_name,False)
 vs.trainable=False
 
-minibatch_size=50
-max_sent_len=500
-vec_size=100
-gru_width=100
+minibatch_size=1000
+max_sent_len=200
+vec_size=50
+gru_width=50
 
 ms=data_dense.Matrices(minibatch_size,max_sent_len)
 
@@ -100,17 +100,32 @@ src_gru=GRU(gru_width)
 trg_gru=GRU(gru_width)
 src_gru_out=src_gru(src_vec)
 trg_gru_out=trg_gru(trg_vec)
+#Dense on top
+src_dense=Dense(gru_width)
+trg_dense=Dense(gru_width)
+src_dense_out=src_dense(src_gru_out)
+trg_dense_out=trg_dense(trg_gru_out)
 #Output as a single vector, internal states of GRUs who have now read the data
-merged_out=merge([src_gru_out,trg_gru_out],mode='cos',dot_axes=1)
+merged_out=merge([src_dense_out,trg_dense_out],mode='cos',dot_axes=1)
 flatten=Flatten()
 merged_out_flat=flatten(merged_out)
 
 model=Model(input=[src_inp,trg_inp], output=merged_out_flat)
 model.compile(optimizer='adam',loss='mse')
 
-inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name,max_iterations=None)
-batch_iter=data_dense.fill_batch(ms,vs,inf_iter)
-import pdb
-#pdb.set_trace()
-model.fit_generator(batch_iter,2*len(inf_iter.data),10) #2* because we also have the negative examples
+inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
+batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter)
 
+
+
+
+# import pdb
+# pdb.set_trace()
+samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size)*minibatch_size
+model.fit_generator(batch_iter,samples_per_epoch,10) #2* because we also have the negative examples
+
+#counter=1
+#while True:
+#    matrix_dict,target=batch_iter.__next__()
+#    print("BATCH", counter, "LOSS",model.train_on_batch(matrix_dict,target),file=sys.stderr,flush=True)
+#    counter+=1
