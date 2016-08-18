@@ -16,7 +16,7 @@ with open("keras_model.json","r") as f:
     trained_model.load_weights("keras_weights.h5")
     trained_model.layers.pop() # remove cosine and flatten layers
     trained_model.layers.pop()
-    trained_model.outputs = [trained_model.get_layer('src_concat').output,trained_model.get_layer('trg_concat').output] # define new outputs
+    trained_model.outputs = [trained_model.get_layer('source_dense').output,trained_model.get_layer('target_dense').output] # define new outputs
     trained_model.layers[-1].outbound_nodes = [] # not sure if we need these...
     trained_model.layers[-2].outbound_nodes = []
     print(trained_model.summary())
