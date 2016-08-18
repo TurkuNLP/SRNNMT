@@ -114,8 +114,8 @@ src_dense_out=[src_dense_n(src_gru_out_n) for src_gru_out_n,src_dense_n in zip(s
 trg_dense_out=[trg_dense_n(trg_gru_out_n) for trg_gru_out_n,trg_dense_n in zip(trg_gru_out,trg_dense)]
 
 #Catenated these dense layers
-src_merged_out=merge(src_dense_out,mode='concat', concat_axis=1)
-trg_merged_out=merge(trg_dense_out,mode='concat', concat_axis=1)
+src_merged_out=merge(src_dense_out,mode='concat', concat_axis=1, name="src_concat")
+trg_merged_out=merge(trg_dense_out,mode='concat', concat_axis=1, name="trg_concat")
 
 #...and cosine between the source and target side
 merged_out=merge([src_merged_out,trg_merged_out],mode='cos',dot_axes=1)
