@@ -38,33 +38,47 @@ vs.trainable=False
 ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
 
 
-test_size=1000
+test_size=100
 
-def iter_test_data(inf_i):
-    for src_sent,trg_sent in inf_i.data[:test_size]:
+data=[]
+def iter_wrapper(src_fname,trg_fname):
+    for src_sent,trg_sent in data_dense.iter_data(src_fname,trg_fname):
+        data.append((src_sent,trg_sent))
         yield (src_sent,trg_sent),1.0
 
-inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
-batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter,ngrams)
 
 src_data=np.zeros((test_size,gru_width*len(ngrams)))
 trg_data=np.zeros((test_size,gru_width*len(ngrams)))
 
-for i,(mx,targets) in enumerate(data_dense.fill_batch(1,max_sent_len,vs,iter_test_data(inf_iter),ngrams)):
-    src,trg=trained_model.predict(mx)
+# fill in src and trg matrices
+for i,(mx,targets) in enumerate(data_dense.fill_batch(1,max_sent_len,vs,iter_wrapper(src_f_name,trg_f_name),ngrams)):
+    src,trg=trained_model.predict(mx) # shape = (1,150)
     src_data[i]=src[0]
     trg_data[i]=trg[0]
-    if i>test_size:
+    if i==test_size-1:
         break
 
-sims=trg_data.dot(src_data[0])
-print(np.dot(src_data[0],trg_data[0]))
-N=10
-results=sorted(((sims[idx],idx,inf_iter.data[idx][1]) for idx in np.argpartition(sims,-N-1)[-N-1:]), reverse=True)
-print(inf_iter.data[0][0])
-for sim,idx,text in results:
-    print(idx,sim,text)
-sys.exit()
+ranks=[]
+verbose=False
+
+# run dot product
+for i in range(test_size):
+    sims=trg_data.dot(src_data[i])  
+    N=10
+    results=sorted(((sims[idx],idx,data[idx][1]) for idx in np.argpartition(sims,-N-1)), reverse=True)#[-N-1:]), reverse=True)
+    result_idx=[idx for (sim,idx,txt) in results]
+    ranks.append(result_idx.index(i)+1)
+    if verbose:
+        print("source:",i,data[i][0].strip(),np.dot(src_data[i],trg_data[i]))
+        print("reference:",data[i][1].strip())
+        print("rank:",result_idx.index(i)+1)
+        for s,idx,txt in results[:10]:
+            print(idx,s,txt)
+        print("****")
+
+print("Avg:",sum(ranks)/len(ranks))
+
+
 
 #for mx,targets in batch_iter: # input is shuffled!!!
 #    src,trg=model.predict(mx)
