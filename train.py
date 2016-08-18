@@ -107,18 +107,17 @@ trg_gru=[GRU(gru_width,name="target_GRU_{}".format(N)) for N in ngrams]
 src_gru_out=[src_gru_n(src_vec_n) for src_vec_n,src_gru_n in zip(src_vec,src_gru)]
 trg_gru_out=[trg_gru_n(trg_vec_n) for trg_vec_n,trg_gru_n in zip(trg_vec,trg_gru)]
 
-#Dense on top of every GRU
-src_dense=[Dense(gru_width,name="source_dense_{}".format(N)) for N in ngrams]
-trg_dense=[Dense(gru_width,name="target_dense_{}".format(N)) for N in ngrams]
-src_dense_out=[src_dense_n(src_gru_out_n) for src_gru_out_n,src_dense_n in zip(src_gru_out,src_dense)]
-trg_dense_out=[trg_dense_n(trg_gru_out_n) for trg_gru_out_n,trg_dense_n in zip(trg_gru_out,trg_dense)]
+#Catenate the GRUs
+src_gru_all=merge(src_gru_out,mode='concat',concat_axis=1,name="src_gru_concat")
+trg_gru_all=merge(trg_gru_out,mode='concat',concat_axis=1,name="trg_gru_concat")
 
-#Catenated these dense layers
-src_merged_out=merge(src_dense_out,mode='concat', concat_axis=1, name="src_concat")
-trg_merged_out=merge(trg_dense_out,mode='concat', concat_axis=1, name="trg_concat")
+src_dense=Dense(gru_width,name="source_dense")
+trg_dense=Dense(gru_width,name="target_dense")
+src_dense_out=src_dense(src_gru_all)
+trg_dense_out=trg_dense(trg_gru_all)
 
 #...and cosine between the source and target side
-merged_out=merge([src_merged_out,trg_merged_out],mode='cos',dot_axes=1)
+merged_out=merge([src_dense_out,trg_dense_out],mode='cos',dot_axes=1)
 flatten=Flatten()
 merged_out_flat=flatten(merged_out)
 
