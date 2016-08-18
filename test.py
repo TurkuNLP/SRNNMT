@@ -47,8 +47,8 @@ def iter_wrapper(src_fname,trg_fname):
         yield (src_sent,trg_sent),1.0
 
 
-src_data=np.zeros((test_size,gru_width*len(ngrams)))
-trg_data=np.zeros((test_size,gru_width*len(ngrams)))
+src_data=np.zeros((test_size,gru_width))
+trg_data=np.zeros((test_size,gru_width))
 
 # fill in src and trg matrices
 for i,(mx,targets) in enumerate(data_dense.fill_batch(1,max_sent_len,vs,iter_wrapper(src_f_name,trg_f_name),ngrams)):
