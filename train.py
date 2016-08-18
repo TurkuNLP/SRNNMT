@@ -72,53 +72,61 @@ class CustomCallback(Callback):
 
 
 
-
-#Read vocabularies
-src_f_name="data/JRC-Acquis.en-fi.fi"
-trg_f_name="data/JRC-Acquis.en-fi.en"
-vs=data_dense.read_vocabularies(src_f_name,trg_f_name,False)
-vs.trainable=False
-
 minibatch_size=1000
 max_sent_len=200
 vec_size=50
 gru_width=50
+ngrams=(3,4,5)
+ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
 
-ms=data_dense.Matrices(minibatch_size,max_sent_len)
+        
+#Read vocabularies
+src_f_name="data/JRC-Acquis.en-fi.fi"
+trg_f_name="data/JRC-Acquis.en-fi.en"
+vs=data_dense.read_vocabularies(src_f_name,trg_f_name,True,ngrams)
+vs.trainable=False
+
 
 #Input: sequences representing the source and target sentences
-#Inputs
-src_inp=Input(shape=(max_sent_len,), name="source_chars", dtype="int32")
-trg_inp=Input(shape=(max_sent_len,), name="target_chars", dtype="int32")
-#Embeddings
-src_emb=Embedding(len(vs.source_chars), vec_size, input_length=max_sent_len, mask_zero=True, name="src_embedding")
-trg_emb=Embedding(len(vs.target_chars), vec_size, input_length=max_sent_len, mask_zero=True, name="trg_embedding")
-#Vectors
-src_vec=src_emb(src_inp)
-trg_vec=trg_emb(trg_inp)
-#RNNs
-src_gru=GRU(gru_width, name="src_gru")
-trg_gru=GRU(gru_width, name="trg_gru")
-src_gru_out=src_gru(src_vec)
-trg_gru_out=trg_gru(trg_vec)
-#Dense on top
-src_dense=Dense(gru_width, name="src_dense")
-trg_dense=Dense(gru_width, name="trg_dense")
-src_dense_out=src_dense(src_gru_out)
-trg_dense_out=trg_dense(trg_gru_out)
-#Output as a single vector, internal states of GRUs who have now read the data
-merged_out=merge([src_dense_out,trg_dense_out],mode='cos',dot_axes=1)
+
+#Inputs: list of one Input per N-gram size
+src_inp=[Input(shape=(max_sent_len,), name="source_ngrams_{}".format(N), dtype="int32") for N in ngrams]
+trg_inp=[Input(shape=(max_sent_len,), name="target_ngrams_{}".format(N), dtype="int32") for N in ngrams]
+
+#Embeddings: list of one Embedding per input
+src_emb=[Embedding(len(vs.source_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True, name="source_embedding_{}".format(N)) for N in ngrams]
+trg_emb=[Embedding(len(vs.target_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True, name="target_embedding_{}".format(N)) for N in ngrams]
+
+#Vectors: list of one embedded vector per input-embedding pair
+src_vec=[src_emb_n(src_inp_n) for src_inp_n,src_emb_n in zip(src_inp,src_emb)]
+trg_vec=[trg_emb_n(trg_inp_n) for trg_inp_n,trg_emb_n in zip(trg_inp,trg_emb)]
+
+#RNNs: list of one GRU per ngram size
+src_gru=[GRU(gru_width,name="source_GRU_{}".format(N)) for N in ngrams]
+trg_gru=[GRU(gru_width,name="target_GRU_{}".format(N)) for N in ngrams]
+src_gru_out=[src_gru_n(src_vec_n) for src_vec_n,src_gru_n in zip(src_vec,src_gru)]
+trg_gru_out=[trg_gru_n(trg_vec_n) for trg_vec_n,trg_gru_n in zip(trg_vec,trg_gru)]
+
+#Dense on top of every GRU
+src_dense=[Dense(gru_width,name="source_dense_{}".format(N)) for N in ngrams]
+trg_dense=[Dense(gru_width,name="target_dense_{}".format(N)) for N in ngrams]
+src_dense_out=[src_dense_n(src_gru_out_n) for src_gru_out_n,src_dense_n in zip(src_gru_out,src_dense)]
+trg_dense_out=[trg_dense_n(trg_gru_out_n) for trg_gru_out_n,trg_dense_n in zip(trg_gru_out,trg_dense)]
+
+#Catenated these dense layers
+src_merged_out=merge(src_dense_out,mode='concat', concat_axis=1)
+trg_merged_out=merge(trg_dense_out,mode='concat', concat_axis=1)
+
+#...and cosine between the source and target side
+merged_out=merge([src_merged_out,trg_merged_out],mode='cos',dot_axes=1)
 flatten=Flatten()
 merged_out_flat=flatten(merged_out)
 
-model=Model(input=[src_inp,trg_inp], output=merged_out_flat)
+model=Model(input=src_inp+trg_inp, output=merged_out_flat)
 model.compile(optimizer='adam',loss='mse')
 
 inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
-batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter)
-
-
-
+batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter,ngrams)
 
 # import pdb
 # pdb.set_trace()
