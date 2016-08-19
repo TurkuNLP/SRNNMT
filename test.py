@@ -30,9 +30,9 @@ gru_width=50
 ngrams=(3,4,5)
 
 #Read vocabularies
-src_f_name="/home/jmnybl/git_checkout/SRNNMT/data/Europarl.en-fi.fi"
-trg_f_name="/home/jmnybl/git_checkout/SRNNMT/data/Europarl.en-fi.en"
-vs=data_dense.read_vocabularies(src_f_name,trg_f_name,False,ngrams)
+src_f_name="data/Europarl.en-fi.fi"
+trg_f_name="data/Europarl.en-fi.en"
+vs=data_dense.read_vocabularies("data/JRC-Acquis.en-fi.fi","data/JRC-Acquis.en-fi.en",False,ngrams) 
 vs.trainable=False
 
 ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
@@ -47,25 +47,28 @@ def iter_wrapper(src_fname,trg_fname):
         yield (src_sent,trg_sent),1.0
 
 
+
 src_data=np.zeros((test_size,gru_width))
 trg_data=np.zeros((test_size,gru_width))
 
 # fill in src and trg matrices
 for i,(mx,targets) in enumerate(data_dense.fill_batch(1,max_sent_len,vs,iter_wrapper(src_f_name,trg_f_name),ngrams)):
     src,trg=trained_model.predict(mx) # shape = (1,150)
-    src_data[i]=src[0]
-    trg_data[i]=trg[0]
+    src_data[i]=src[0]/np.linalg.norm(src[0])
+    trg_data[i]=trg[0]/np.linalg.norm(trg[0])
     if i==test_size-1:
         break
 
 ranks=[]
-verbose=False
+verbose=True
 
 # run dot product
 for i in range(test_size):
     sims=trg_data.dot(src_data[i])  
     N=10
     results=sorted(((sims[idx],idx,data[idx][1]) for idx in np.argpartition(sims,-N-1)), reverse=True)#[-N-1:]), reverse=True)
+#    if results[0][0]<0.6:
+#        continue
     result_idx=[idx for (sim,idx,txt) in results]
     ranks.append(result_idx.index(i)+1)
     if verbose:
@@ -77,6 +80,7 @@ for i in range(test_size):
         print("****")
 
 print("Avg:",sum(ranks)/len(ranks))
+print("#num:",len(ranks))
 
 
 
