@@ -31,7 +31,7 @@ class CustomCallback(Callback):
 
 
 minibatch_size=500
-max_sent_len=200
+max_sent_len=30
 vec_size=100
 gru_width=100
 ngrams=(3,4,5)
@@ -45,62 +45,95 @@ vs=data_dense.read_vocabularies(src_f_name,trg_f_name,True,ngrams)
 vs.trainable=False
 
 
-#Inputs: list of one Input per N-gram size
-src_inp=[Input(shape=(max_sent_len,), name="source_ngrams_{}".format(N), dtype="int32") for N in ngrams]
-trg_inp=[Input(shape=(max_sent_len,), name="target_ngrams_{}".format(N), dtype="int32") for N in ngrams]
-# sent len
-src_len_inp=Input(shape=(1,), name="src_len", dtype="int32")
-trg_len_inp=Input(shape=(1,), name="trg_len", dtype="int32")
+###Inputs: list of one Input per N-gram size
+##src_inp=[Input(shape=(max_sent_len,), name="source_ngrams_{}".format(N), dtype="int32") for N in ngrams]
+##trg_inp=[Input(shape=(max_sent_len,), name="target_ngrams_{}".format(N), dtype="int32") for N in ngrams]
+### sent len
+##src_len_inp=Input(shape=(1,), name="src_len", dtype="int32")
+##trg_len_inp=Input(shape=(1,), name="trg_len", dtype="int32")
 
-#Embeddings: list of one Embedding per input
-src_emb=[Embedding(len(vs.source_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True, name="source_embedding_{}".format(N)) for N in ngrams]
-trg_emb=[Embedding(len(vs.target_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True, name="target_embedding_{}".format(N)) for N in ngrams]
-# sent len
-flattener1=Flatten()
-flattener2=Flatten()
-src_len_emb=Embedding(31,vec_size, input_length=1, name="src_len_emb")
-#src_flattener=Flatten()
-src_len_vec=flattener1(src_len_emb(src_len_inp))
-trg_len_emb=Embedding(31,vec_size, input_length=1, name="trg_len_emb")
-#trg_flattener=Flatten()
-trg_len_vec=flattener2(trg_len_emb(trg_len_inp))
+###Embeddings: list of one Embedding per input
+##src_emb=[Embedding(len(vs.source_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True, name="source_embedding_{}".format(N)) for N in ngrams]
+##trg_emb=[Embedding(len(vs.target_ngrams[N]), vec_size, input_length=max_sent_len, mask_zero=True, name="target_embedding_{}".format(N)) for N in ngrams]
+### sent len
+##flattener1=Flatten()
+##flattener2=Flatten()
+##src_len_emb=Embedding(31,vec_size, input_length=1, name="src_len_emb")
+###src_flattener=Flatten()
+##src_len_vec=flattener1(src_len_emb(src_len_inp))
+##trg_len_emb=Embedding(31,vec_size, input_length=1, name="trg_len_emb")
+###trg_flattener=Flatten()
+##trg_len_vec=flattener2(trg_len_emb(trg_len_inp))
 
-#Vectors: list of one embedded vector per input-embedding pair
-src_vec=[src_emb_n(src_inp_n) for src_inp_n,src_emb_n in zip(src_inp,src_emb)]
-trg_vec=[trg_emb_n(trg_inp_n) for trg_inp_n,trg_emb_n in zip(trg_inp,trg_emb)]
+###Vectors: list of one embedded vector per input-embedding pair
+##src_vec=[src_emb_n(src_inp_n) for src_inp_n,src_emb_n in zip(src_inp,src_emb)]
+##trg_vec=[trg_emb_n(trg_inp_n) for trg_inp_n,trg_emb_n in zip(trg_inp,trg_emb)]
 
-#RNNs: list of one GRU per ngram size
-src_gru=[GRU(gru_width,name="source_GRU_{}".format(N)) for N in ngrams]
-trg_gru=[GRU(gru_width,name="target_GRU_{}".format(N)) for N in ngrams]
-src_gru_out=[src_gru_n(src_vec_n) for src_vec_n,src_gru_n in zip(src_vec,src_gru)]
-trg_gru_out=[trg_gru_n(trg_vec_n) for trg_vec_n,trg_gru_n in zip(trg_vec,trg_gru)]
+###RNNs: list of one GRU per ngram size
+##src_gru=[GRU(gru_width,name="source_GRU_{}".format(N)) for N in ngrams]
+##trg_gru=[GRU(gru_width,name="target_GRU_{}".format(N)) for N in ngrams]
+##src_gru_out=[src_gru_n(src_vec_n) for src_vec_n,src_gru_n in zip(src_vec,src_gru)]
+##trg_gru_out=[trg_gru_n(trg_vec_n) for trg_vec_n,trg_gru_n in zip(trg_vec,trg_gru)]
 
-#Catenate the GRUs
-src_gru_all=merge(src_gru_out,mode='concat',concat_axis=1,name="src_gru_concat")
-trg_gru_all=merge(trg_gru_out,mode='concat',concat_axis=1,name="trg_gru_concat")
-# catenate also len embeddings here
-src_cat_all=merge([src_gru_all,src_len_vec],mode='concat',concat_axis=1)
-trg_cat_all=merge([trg_gru_all,trg_len_vec],mode='concat',concat_axis=1)
+###Catenate the GRUs
+##src_gru_all=merge(src_gru_out,mode='concat',concat_axis=1,name="src_gru_concat")
+##trg_gru_all=merge(trg_gru_out,mode='concat',concat_axis=1,name="trg_gru_concat")
+### catenate also len embeddings here
+##src_cat_all=merge([src_gru_all,src_len_vec],mode='concat',concat_axis=1)
+##trg_cat_all=merge([trg_gru_all,trg_len_vec],mode='concat',concat_axis=1)
 
-src_dense=Dense(gru_width,name="source_dense")
-trg_dense=Dense(gru_width,name="target_dense")
-src_dense_out=src_dense(src_cat_all)
-trg_dense_out=trg_dense(trg_cat_all)
+##src_dense=Dense(gru_width,name="source_dense")
+##trg_dense=Dense(gru_width,name="target_dense")
+##src_dense_out=src_dense(src_cat_all)
+##trg_dense_out=trg_dense(trg_cat_all)
 
-#..regularize
-#src_dense_reg=ActivityRegularization(l2=1.0,name="source_dense")
-#trg_dense_reg=ActivityRegularization(l2=1.0,name="target_dense")
-#src_dense_reg_out=src_dense_reg(src_dense_out)
-#trg_dense_reg_out=trg_dense_reg(trg_dense_out)
+###..regularize
+###src_dense_reg=ActivityRegularization(l2=1.0,name="source_dense")
+###trg_dense_reg=ActivityRegularization(l2=1.0,name="target_dense")
+###src_dense_reg_out=src_dense_reg(src_dense_out)
+###trg_dense_reg_out=trg_dense_reg(trg_dense_out)
 
-#...and cosine between the source and target side
-merged_out=merge([src_dense_out,trg_dense_out],mode='cos',dot_axes=1)
+###...and cosine between the source and target side
+##merged_out=merge([src_dense_out,trg_dense_out],mode='cos',dot_axes=1)
+##flatten=Flatten()
+##merged_out_flat=flatten(merged_out)
+
+##model=Model(input=src_inp+trg_inp+[src_len_inp,trg_len_inp], output=merged_out_flat)
+##model.compile(optimizer='adam',loss='mse')
+
+# Inputs:
+src_input=Input(shape=(max_sent_len,), name="source_words", dtype="int32")
+trg_input=Input(shape=(max_sent_len,), name="target_words", dtype="int32")
+
+# Embeddings:
+src_emb=Embedding(len(vs.source_words), vec_size, input_length=max_sent_len, mask_zero=True, name="src_embedding")(src_input)
+trg_emb=Embedding(len(vs.target_words), vec_size, input_length=max_sent_len, mask_zero=True, name="trg_embedding")(trg_input)
+
+# Bidirectional GRUs:
+src_fwd=GRU(gru_width,name="src_fwd_gru",return_sequences=True)(src_emb)
+src_back=GRU(gru_width,name="src_back_gru",return_sequences=True, go_backwards=True)(src_emb)
+trg_fwd=GRU(gru_width,name="trg_fwd_gru",return_sequences=True)(trg_emb)
+trg_back=GRU(gru_width,name="trg_back_gru",return_sequences=True,go_backwards=True)(trg_emb)
+
+src_merged=merge([src_fwd,src_back],mode="concat")
+trg_merged=merge([trg_fwd,trg_back],mode="concat")
+
+# now we have sequence of 200-dim 'word' vectors
+
+src_gru=GRU(gru_width, name="src_gru")(src_merged)
+trg_gru=GRU(gru_width, name="trg_gru")(trg_merged)
+
+# Dense:
+src_dense=Dense(gru_width,name="source_dense")(src_gru)
+trg_dense=Dense(gru_width,name="target_dense")(trg_gru)
+
+# Cosine:
+merge_out=merge([src_dense,trg_dense],mode='cos',dot_axes=1)
 flatten=Flatten()
-merged_out_flat=flatten(merged_out)
+merged_out_flat=flatten(merge_out)
 
-model=Model(input=src_inp+trg_inp+[src_len_inp,trg_len_inp], output=merged_out_flat)
+model=Model(input=[src_input,trg_input], output=merged_out_flat)
 model.compile(optimizer='adam',loss='mse')
-
 
 inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
 batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter,ngrams)

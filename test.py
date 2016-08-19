@@ -9,6 +9,7 @@ import math
 import json
 
 import data_dense
+#from train import max_sent_len, vec_size, gru_width, ngrams
 
 # load model
 with open("keras_model.json","r") as f:
@@ -24,7 +25,11 @@ with open("keras_model.json","r") as f:
 
 
 minibatch_size=1
-max_sent_len=200
+#max_sent_len=200
+#vec_size=100
+#gru_width=100
+#ngrams=(3,4,5)
+max_sent_len=30
 vec_size=100
 gru_width=100
 ngrams=(3,4,5)
