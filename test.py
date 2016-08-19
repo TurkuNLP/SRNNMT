@@ -24,7 +24,7 @@ with open("keras_model.json","r") as f:
     print(trained_model.outputs)
 
 
-minibatch_size=1
+minibatch_size=100
 #max_sent_len=200
 #vec_size=100
 #gru_width=100
@@ -43,7 +43,7 @@ vs.trainable=False
 ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
 
 
-test_size=100
+test_size=1000
 
 data=[]
 def iter_wrapper(src_fname,trg_fname):
@@ -56,12 +56,19 @@ def iter_wrapper(src_fname,trg_fname):
 src_data=np.zeros((test_size,gru_width))
 trg_data=np.zeros((test_size,gru_width))
 
-# fill in src and trg matrices
-for i,(mx,targets) in enumerate(data_dense.fill_batch(1,max_sent_len,vs,iter_wrapper(src_f_name,trg_f_name),ngrams)):
-    src,trg=trained_model.predict(mx) # shape = (1,150)
-    src_data[i]=src[0]/np.linalg.norm(src[0])
-    trg_data[i]=trg[0]/np.linalg.norm(trg[0])
-    if i==test_size-1:
+
+counter=0
+# for loop over minibatches
+for i,(mx,targets) in enumerate(data_dense.fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(src_f_name,trg_f_name),ngrams)):
+    src,trg=trained_model.predict(mx) # shape = (minibatch_size,gru_width)
+    # loop over items in minibatch
+    for j,(src_v,trg_v) in enumerate(zip(src,trg)):
+        src_data[counter]=src_v/np.linalg.norm(src_v)
+        trg_data[counter]=trg_v/np.linalg.norm(trg_v)
+        counter+=1
+        if counter==test_size:
+            break
+    if counter==test_size:
         break
 
 ranks=[]
