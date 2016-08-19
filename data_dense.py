@@ -24,11 +24,15 @@ class Matrices:
         for N in ngrams:
             self.source_ngrams[N]=np.zeros((minibatch_size,max_sent_len),np.int)
             self.target_ngrams[N]=np.zeros((minibatch_size,max_sent_len),np.int)
+        self.src_len=np.zeros((minibatch_size,1),np.int)
+        self.trg_len=np.zeros((minibatch_size,1),np.int)
         self.targets=np.zeros((minibatch_size,1),np.float32)
         self.matrix_dict={}
         for N in ngrams:
             self.matrix_dict["source_ngrams_{}".format(N)]=self.source_ngrams[N] #we need a string identifier
             self.matrix_dict["target_ngrams_{}".format(N)]=self.target_ngrams[N] #we need a string identifier
+        self.matrix_dict["src_len"]=self.src_len
+        self.matrix_dict["trg_len"]=self.trg_len
 
     def wipe(self):
         assert False #I think this one I don't use anymore
@@ -55,7 +59,8 @@ class Vocabularies(object):
 def iter_data(training_source,training_target):
     with open(training_source) as src, open(training_target) as trg:
         for src_line, trg_line in zip(src,trg):
-            yield src_line, trg_line
+            if 5<=len(src_line.strip().split())<=30 and 5<=len(trg_line.strip().split())<=30: # sentence length must be between 5 and 25 tokens
+                yield src_line, trg_line
 
 class InfiniteDataIterator:
 
@@ -140,6 +145,8 @@ def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
                 ms.source_ngrams[N][row,j]=vs.get_id(ngram,vs.source_ngrams[N])
             for j,ngram in enumerate(ngram_iterator(sent_target,N,max_sent_len)):
                 ms.target_ngrams[N][row,j]=vs.get_id(ngram,vs.target_ngrams[N])
+        ms.src_len[row]=len(sent_src.strip().split())
+        ms.trg_len[row]=len(sent_target.strip().split())
         ms.targets[row]=target
         row+=1
         if row==batchsize:

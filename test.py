@@ -25,8 +25,8 @@ with open("keras_model.json","r") as f:
 
 minibatch_size=1
 max_sent_len=200
-vec_size=50
-gru_width=50
+vec_size=100
+gru_width=100
 ngrams=(3,4,5)
 
 #Read vocabularies
