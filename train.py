@@ -1,5 +1,5 @@
 from keras.models import Sequential, Graph, Model
-from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten
+from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten,ActivityRegularization
 # from keras.layers.core import Masking
 from keras.layers.recurrent import GRU
 # from keras.optimizers import SGD
@@ -67,13 +67,19 @@ trg_gru_out=[trg_gru_n(trg_vec_n) for trg_vec_n,trg_gru_n in zip(trg_vec,trg_gru
 src_gru_all=merge(src_gru_out,mode='concat',concat_axis=1,name="src_gru_concat")
 trg_gru_all=merge(trg_gru_out,mode='concat',concat_axis=1,name="trg_gru_concat")
 
-src_dense=Dense(gru_width,name="source_dense")
-trg_dense=Dense(gru_width,name="target_dense")
+src_dense=Dense(gru_width,name="source_dense_unreg")
+trg_dense=Dense(gru_width,name="target_dense_unreg")
 src_dense_out=src_dense(src_gru_all)
 trg_dense_out=trg_dense(trg_gru_all)
 
+#..regularize
+src_dense_reg=ActivityRegularization(l2=1.0,name="source_dense")
+trg_dense_reg=ActivityRegularization(l2=1.0,name="target_dense")
+src_dense_reg_out=src_dense_reg(src_dense_out)
+trg_dense_reg_out=trg_dense_reg(trg_dense_out)
+
 #...and cosine between the source and target side
-merged_out=merge([src_dense_out,trg_dense_out],mode='cos',dot_axes=1)
+merged_out=merge([src_dense_reg_out,trg_dense_reg_out],mode='cos',dot_axes=1)
 flatten=Flatten()
 merged_out_flat=flatten(merged_out)
 

@@ -30,8 +30,8 @@ gru_width=50
 ngrams=(3,4,5)
 
 #Read vocabularies
-src_f_name="data/JRC-Acquis.en-fi.fi"
-trg_f_name="data/JRC-Acquis.en-fi.en"
+src_f_name="/home/jmnybl/git_checkout/SRNNMT/data/Europarl.en-fi.fi"
+trg_f_name="/home/jmnybl/git_checkout/SRNNMT/data/Europarl.en-fi.en"
 vs=data_dense.read_vocabularies(src_f_name,trg_f_name,False,ngrams)
 vs.trainable=False
 
