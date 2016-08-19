@@ -29,21 +29,18 @@ class CustomCallback(Callback):
     def on_epoch_end(self, epoch, logs={}):
         pass
 
-
 minibatch_size=500
 max_sent_len=200
-vec_size=100
-gru_width=100
+vec_size=75
+gru_width=75
 ngrams=(3,4,5)
 ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
-
         
 #Read vocabularies
-src_f_name="data/JRC-Acquis.en-fi.fi"
-trg_f_name="data/JRC-Acquis.en-fi.en"
-vs=data_dense.read_vocabularies(src_f_name,trg_f_name,True,ngrams)
+src_f_name="data/all.train.fi"
+trg_f_name="data/all.train.en"
+vs=data_dense.read_vocabularies(src_f_name,trg_f_name,False,ngrams)
 vs.trainable=False
-
 
 #Inputs: list of one Input per N-gram size
 src_inp=[Input(shape=(max_sent_len,), name="source_ngrams_{}".format(N), dtype="int32") for N in ngrams]
@@ -117,7 +114,7 @@ with open("keras_model.json", "w") as json_file:
 save_cb=ModelCheckpoint(filepath="keras_weights.h5", monitor='loss', verbose=1, save_best_only=False, mode='auto')
 
 samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size)*minibatch_size #2* because we also have the negative examples
-model.fit_generator(batch_iter,samples_per_epoch,10,callbacks=[save_cb]) 
+model.fit_generator(batch_iter,samples_per_epoch,20,callbacks=[save_cb]) 
 
 #counter=1
 #while True:

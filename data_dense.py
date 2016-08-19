@@ -56,19 +56,24 @@ class Vocabularies(object):
             return dict.get(label,dict["<UNK>"])
 
 
-def iter_data(training_source,training_target):
+def iter_data(training_source,training_target,max_pairs=None):
+    counter=0
     with open(training_source) as src, open(training_target) as trg:
         for src_line, trg_line in zip(src,trg):
-            if 5<=len(src_line.strip().split())<=30 and 5<=len(trg_line.strip().split())<=30: # sentence length must be between 5 and 25 tokens
+            if 5<=len(src_line.strip().split())<=30 and 5<=len(trg_line.strip().split())<=30: # sentence length must be between 5 and 30 tokens
                 yield src_line, trg_line
+                counter+=1
+                if max_pairs is not None and max_pairs>0 and counter>=max_pairs:
+                    break
 
 class InfiniteDataIterator:
 
-    def __init__(self,training_source,training_target,max_iterations=None):
+    def __init__(self,training_source,training_target,max_iterations=None,max_pairs=None):
         self.training_source=training_source
         self.training_target=training_target
         self.max_iterations=max_iterations
-        self.data=list(iter_data(self.training_source,self.training_target)) #must memorize
+        self.max_pairs=max_pairs
+        self.data=list(iter_data(self.training_source,self.training_target,self.max_pairs)) #must memorize
                 
     def __iter__(self):
         """
@@ -103,12 +108,16 @@ def ngram_iterator(src,N,max_sentence_len):
             
 def read_vocabularies(training_source,training_target,force_rebuild,ngrams):
     #ngrams -> (1,2,3)... iterable of Ns
+    counter=0
     voc_fname=training_source+"-vocabularies.pickle"
     if force_rebuild or not os.path.exists(voc_fname):
         #make sure no feature has 0 index
         logging.info("Making one pass to gather vocabulary")
         vs=Vocabularies(ngrams)
-        for (sent_src,sent_target),_ in InfiniteDataIterator(training_source,training_target,max_iterations=1): #Make a single pass: # (source_sentence, target_sentence)
+        for (sent_src,sent_target),_ in InfiniteDataIterator(training_source,training_target,max_iterations=1,max_pairs=1000000): #Make a single pass: # (source_sentence, target_sentence)
+            counter+=1
+            if counter%10000==0:
+                logging.info("Seen {} sentence pairs...".format(counter))
             for N in ngrams:
                 for ngram in ngram_iterator(sent_src,N,len(sent_src)):
                     vs.get_id(ngram,vs.source_ngrams[N])
