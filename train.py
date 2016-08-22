@@ -29,11 +29,11 @@ class CustomCallback(Callback):
     def on_epoch_end(self, epoch, logs={}):
         pass
 
-minibatch_size=500
+minibatch_size=200
 max_sent_len=200
 vec_size=75
 gru_width=75
-ngrams=(3,4,5)
+ngrams=(3,4)
 ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
         
 #Read vocabularies
@@ -97,9 +97,10 @@ merged_out_flat=flatten(merged_out)
 
 model=Model(input=src_inp+trg_inp+[src_len_inp,trg_len_inp], output=merged_out_flat)
 model.compile(optimizer='adam',loss='mse')
+print(model.summary())
 
 
-inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
+inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)#,max_pairs=50000)
 batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter,ngrams)
 
 # import pdb
@@ -113,8 +114,8 @@ with open("keras_model.json", "w") as json_file:
 # callback to save weights after each epoch
 save_cb=ModelCheckpoint(filepath="keras_weights.h5", monitor='loss', verbose=1, save_best_only=False, mode='auto')
 
-samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size)*minibatch_size #2* because we also have the negative examples
-model.fit_generator(batch_iter,samples_per_epoch,20,callbacks=[save_cb]) 
+samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size/20)*minibatch_size #2* because we also have the negative examples
+model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb]) 
 
 #counter=1
 #while True:
