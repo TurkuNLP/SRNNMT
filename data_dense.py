@@ -19,22 +19,22 @@ logging.basicConfig(level=0)
 class Matrices:
     
     def __init__(self,minibatch_size,max_sent_len,ngrams):
-        self.source_ngrams={} #{ N -> matrix}
-        self.target_ngrams={} #{ N -> matrix}
-        for N in ngrams:
-            self.source_ngrams[N]=np.zeros((minibatch_size,max_sent_len),np.int)
-            self.target_ngrams[N]=np.zeros((minibatch_size,max_sent_len),np.int)
-        self.src_len=np.zeros((minibatch_size,1),np.int)
-        self.trg_len=np.zeros((minibatch_size,1),np.int)
+#        self.source_ngrams={} #{ N -> matrix}
+#        self.target_ngrams={} #{ N -> matrix}
+#        for N in ngrams:
+#            self.source_ngrams[N]=np.zeros((minibatch_size,max_sent_len),np.int)
+#            self.target_ngrams[N]=np.zeros((minibatch_size,max_sent_len),np.int)
+#        self.src_len=np.zeros((minibatch_size,1),np.int)
+#        self.trg_len=np.zeros((minibatch_size,1),np.int)
         self.targets=np.zeros((minibatch_size,1),np.float32)
         self.source_words=np.zeros((minibatch_size,max_sent_len),np.int)
         self.target_words=np.zeros((minibatch_size,max_sent_len),np.int)
         self.matrix_dict={}
-        for N in ngrams:
-            self.matrix_dict["source_ngrams_{}".format(N)]=self.source_ngrams[N] #we need a string identifier
-            self.matrix_dict["target_ngrams_{}".format(N)]=self.target_ngrams[N] #we need a string identifier
-        self.matrix_dict["src_len"]=self.src_len
-        self.matrix_dict["trg_len"]=self.trg_len
+#        for N in ngrams:
+#            self.matrix_dict["source_ngrams_{}".format(N)]=self.source_ngrams[N] #we need a string identifier
+#            self.matrix_dict["target_ngrams_{}".format(N)]=self.target_ngrams[N] #we need a string identifier
+#        self.matrix_dict["src_len"]=self.src_len
+#        self.matrix_dict["trg_len"]=self.trg_len
         self.matrix_dict["source_words"]=self.source_words
         self.matrix_dict["target_words"]=self.target_words
 
@@ -46,11 +46,11 @@ class Matrices:
 class Vocabularies(object):
 
     def __init__(self,ngrams):
-        self.source_ngrams={}  # {order -> {"<MASK>":0,"<UNK>":1}} # source language ngrams
-        self.target_ngrams={}  # {order -> {"<MASK>":0,"<UNK>":1}} # target language characters
-        for N in ngrams:
-            self.source_ngrams[N]={"<MASK>":0,"<UNK>":1} # source language ngrams
-            self.target_ngrams[N]={"<MASK>":0,"<UNK>":1} # # target language characters
+#        self.source_ngrams={}  # {order -> {"<MASK>":0,"<UNK>":1}} # source language ngrams
+#        self.target_ngrams={}  # {order -> {"<MASK>":0,"<UNK>":1}} # target language characters
+#        for N in ngrams:
+#            self.source_ngrams[N]={"<MASK>":0,"<UNK>":1} # source language ngrams
+#            self.target_ngrams[N]={"<MASK>":0,"<UNK>":1} # # target language characters
         self.trainable=True    #If false, it will use <UNK>
         self.source_words={"<MASK>":0,"<UNK>":1}
         self.target_words={"<MASK>":0,"<UNK>":1}    
@@ -115,11 +115,11 @@ def read_vocabularies(training_source,training_target,force_rebuild,ngrams):
         logging.info("Making one pass to gather vocabulary")
         vs=Vocabularies(ngrams)
         for (sent_src,sent_target),_ in InfiniteDataIterator(training_source,training_target,max_iterations=1): #Make a single pass: # (source_sentence, target_sentence)
-            for N in ngrams:
-                for ngram in ngram_iterator(sent_src,N,len(sent_src)):
-                    vs.get_id(ngram,vs.source_ngrams[N])
-                for ngram in ngram_iterator(sent_target,N,len(sent_target)):
-                    vs.get_id(ngram,vs.target_ngrams[N])
+#            for N in ngrams:
+#                for ngram in ngram_iterator(sent_src,N,len(sent_src)):
+#                    vs.get_id(ngram,vs.source_ngrams[N])
+#                for ngram in ngram_iterator(sent_target,N,len(sent_target)):
+#                    vs.get_id(ngram,vs.target_ngrams[N])
             for token in sent_src.strip().split():
                 vs.get_id(token,vs.source_words)
             for token in sent_target.strip().split():
@@ -147,20 +147,20 @@ def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
 
 
     ms=Matrices(minibatch_size,max_sent_len,ngrams)
-    batchsize,max_sentence_len=ms.source_ngrams[ngrams[0]].shape #just pick any one of these really
+    batchsize,max_sentence_len=ms.source_words.shape #just pick any one of these really
     row=0
     for (sent_src,sent_target),target in data_iterator:
-        for N in ngrams:
-            for j,ngram in enumerate(ngram_iterator(sent_src,N,max_sent_len)):
-                ms.source_ngrams[N][row,j]=vs.get_id(ngram,vs.source_ngrams[N])
-            for j,ngram in enumerate(ngram_iterator(sent_target,N,max_sent_len)):
-                ms.target_ngrams[N][row,j]=vs.get_id(ngram,vs.target_ngrams[N])
+#        for N in ngrams:
+#            for j,ngram in enumerate(ngram_iterator(sent_src,N,max_sent_len)):
+#                ms.source_ngrams[N][row,j]=vs.get_id(ngram,vs.source_ngrams[N])
+#            for j,ngram in enumerate(ngram_iterator(sent_target,N,max_sent_len)):
+#                ms.target_ngrams[N][row,j]=vs.get_id(ngram,vs.target_ngrams[N])
         for x,token in enumerate(sent_src.strip().split()):
             ms.source_words[row,x]=vs.get_id(token,vs.source_words)
         for x,token in enumerate(sent_target.strip().split()):
             ms.target_words[row,x]=vs.get_id(token,vs.target_words)
-        ms.src_len[row]=len(sent_src.strip().split())
-        ms.trg_len[row]=len(sent_target.strip().split())
+#        ms.src_len[row]=len(sent_src.strip().split())
+#        ms.trg_len[row]=len(sent_target.strip().split())
         ms.targets[row]=target
         row+=1
         if row==batchsize:
