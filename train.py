@@ -39,9 +39,12 @@ ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
 
         
 #Read vocabularies
-src_f_name="/homeappl/home/jmnybl/appl_taito/SRNNMT/data/all.train.fi"
-trg_f_name="/homeappl/home/jmnybl/appl_taito/SRNNMT/data/all.train.en"
-vs=data_dense.read_vocabularies(src_f_name,trg_f_name,False,ngrams)
+src_f_name="data/all.train.fi"
+trg_f_name="data/all.train.en"
+src_vmodel="pb34_wf_200_v2.bin"
+trg_vmodel="gigaword-and-wikipedia.bin"
+vs=data_dense.Vocabularies(src_vmodel,trg_vmodel) # TODO should save w2idx dictionaries here
+#vs.read_vocabs(src_vmodel)
 vs.trainable=False
 
 
@@ -106,8 +109,8 @@ src_input=Input(shape=(max_sent_len,), name="source_words", dtype="int32")
 trg_input=Input(shape=(max_sent_len,), name="target_words", dtype="int32")
 
 # Embeddings:
-src_emb=Embedding(len(vs.source_words), vec_size, input_length=max_sent_len, mask_zero=True, name="src_embedding")(src_input)
-trg_emb=Embedding(len(vs.target_words), vec_size, input_length=max_sent_len, mask_zero=True, name="trg_embedding")(trg_input)
+src_emb=Embedding(len(vs.source_words), vs.src_vectors.shape[1], input_length=max_sent_len, mask_zero=True, name="src_embedding", weights=[vs.src_vectors])(src_input)
+trg_emb=Embedding(len(vs.target_words), vs.trg_vectors.shape[1], input_length=max_sent_len, mask_zero=True, name="trg_embedding", weights=[vs.trg_vectors])(trg_input)
 
 # Bidirectional GRUs:
 src_fwd=GRU(gru_width,name="src_fwd_gru",return_sequences=True)(src_emb)
@@ -149,8 +152,8 @@ with open("keras_model.json", "w") as json_file:
 # callback to save weights after each epoch
 save_cb=ModelCheckpoint(filepath="keras_weights.h5", monitor='loss', verbose=1, save_best_only=False, mode='auto')
 
-samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size)*minibatch_size #2* because we also have the negative examples
-model.fit_generator(batch_iter,samples_per_epoch,20,callbacks=[save_cb]) 
+samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size/20)*minibatch_size #2* because we also have the negative examples
+model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb]) 
 
 #counter=1
 #while True:

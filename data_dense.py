@@ -11,6 +11,7 @@ import sys
 import pickle
 import os.path
 import random
+import lwvlib
 
 import logging
 logging.basicConfig(level=0)
@@ -45,15 +46,35 @@ class Matrices:
 
 class Vocabularies(object):
 
-    def __init__(self,ngrams):
+    def __init__(self,src_vfile,trg_vfile):
 #        self.source_ngrams={}  # {order -> {"<MASK>":0,"<UNK>":1}} # source language ngrams
 #        self.target_ngrams={}  # {order -> {"<MASK>":0,"<UNK>":1}} # target language characters
 #        for N in ngrams:
 #            self.source_ngrams[N]={"<MASK>":0,"<UNK>":1} # source language ngrams
 #            self.target_ngrams[N]={"<MASK>":0,"<UNK>":1} # # target language characters
         self.trainable=True    #If false, it will use <UNK>
-        self.source_words={"<MASK>":0,"<UNK>":1}
-        self.target_words={"<MASK>":0,"<UNK>":1}    
+#        self.source_words={"<MASK>":0,"<UNK>":1}
+#        self.target_words={"<MASK>":0,"<UNK>":1}
+        self.source_words,self.src_vectors=self.read_vocabs(src_vfile)
+        self.target_words,self.trg_vectors=self.read_vocabs(trg_vfile)
+        print(self.src_vectors.shape)
+        print(self.trg_vectors.shape)
+        
+        
+    def read_vocabs(self,vmodel,vsize=100000):
+        model=lwvlib.load(vmodel,vsize,vsize)
+        w2idx={"<MASK>":0,"<UNK>":1}
+        for i,w in enumerate(model.words[:vsize]):
+            w2idx[w]=i+2
+#        print(len(w2idx))
+        vectors=np.zeros((vsize+2,model.vectors.shape[1]),np.float)
+        for i,vec in enumerate(model.vectors):
+            vectors[i+2]=vec
+        # vector for unk
+        vectors[1]=vectors[np.random.randint(2,len(model.words))] # take random # TODO: fix!
+        return w2idx,vectors
+        
+        
 
     def get_id(self,label,dict,counter=None):
         if self.trainable:

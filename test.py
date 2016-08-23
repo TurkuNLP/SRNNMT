@@ -24,20 +24,20 @@ with open("keras_model.json","r") as f:
     print(trained_model.outputs)
 
 
-minibatch_size=100
-#max_sent_len=200
-#vec_size=100
-#gru_width=100
-#ngrams=(3,4,5)
+minibatch_size=500
 max_sent_len=30
 vec_size=100
 gru_width=100
 ngrams=(3,4,5)
+ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
 
+        
 #Read vocabularies
-src_f_name="data/Europarl.en-fi.fi"
-trg_f_name="data/Europarl.en-fi.en"
-vs=data_dense.read_vocabularies("data/JRC-Acquis.en-fi.fi","data/JRC-Acquis.en-fi.en",False,ngrams) 
+src_f_name="data/all.test.fi"
+trg_f_name="data/all.test.en"
+src_vmodel="pb34_wf_200_v2.bin"
+trg_vmodel="gigaword-and-wikipedia.bin"
+vs=data_dense.Vocabularies(src_vmodel,trg_vmodel) 
 vs.trainable=False
 
 ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
