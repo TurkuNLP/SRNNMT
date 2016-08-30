@@ -106,10 +106,10 @@ def ngram_iterator(src,N,max_sentence_len):
             yield src[i:i+N]
     
             
-def read_vocabularies(training_source,training_target,force_rebuild,ngrams):
+def read_vocabularies(voc_fname,training_source,training_target,force_rebuild,ngrams):
     #ngrams -> (1,2,3)... iterable of Ns
     counter=0
-    voc_fname=training_source+"-vocabularies.pickle"
+#    voc_fname=training_source+"-vocabularies.pickle"
     if force_rebuild or not os.path.exists(voc_fname):
         #make sure no feature has 0 index
         logging.info("Making one pass to gather vocabulary")
