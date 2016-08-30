@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -N 1
 #SBATCH -p gpu
-#SBATCH -t 24:00:00
+#SBATCH -t 36:00:00
 #SBATCH -J fg1
 #SBATCH -o fg1.out
 #SBATCH -e fg1.err
