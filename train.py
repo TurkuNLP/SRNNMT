@@ -84,8 +84,8 @@ trg_dense_out=trg_dense(trg_gru_all)
 
 src_dense_lin=Dense(2*gru_width,name="source_dense")
 trg_dense_lin=Dense(2*gru_width,name="target_dense")
-src_dense_lin_out=src_dense(src_dense_out)
-trg_dense_lin_out=trg_dense(trg_dense_out)
+src_dense_lin_out=src_dense_lin(src_dense_out)
+trg_dense_lin_out=trg_dense_lin(trg_dense_out)
 
 
 #..regularize
