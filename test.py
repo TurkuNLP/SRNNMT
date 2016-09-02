@@ -11,90 +11,125 @@ import json
 import data_dense
 
 # load model
-with open("keras_model.json","r") as f:
-    trained_model=model_from_json(f.read())
-    trained_model.load_weights("keras_weights.h5")
-    trained_model.layers.pop() # remove cosine and flatten layers
-    trained_model.layers.pop()
-    trained_model.outputs = [trained_model.get_layer('source_dense').output,trained_model.get_layer('target_dense').output] # define new outputs
-    trained_model.layers[-1].outbound_nodes = [] # not sure if we need these...
-    trained_model.layers[-2].outbound_nodes = []
-    print(trained_model.summary())
-    print(trained_model.outputs)
+def load_model(mname):
+    with open("/home/ginter/SRNNMT/keras_model.json","r") as f:
+        trained_model=model_from_json(f.read())
+        trained_model.load_weights("/home/ginter/SRNNMT/keras_weights.h5")
+        trained_model.layers.pop() # remove cosine and flatten layers
+        trained_model.layers.pop()
+        trained_model.outputs = [trained_model.get_layer('source_dense').output,trained_model.get_layer('target_dense').output] # define new outputs
+        trained_model.layers[-1].outbound_nodes = [] # not sure if we need these...
+        trained_model.layers[-2].outbound_nodes = []
+        print(trained_model.summary())
+        print(trained_model.outputs)
+        
+    return trained_model
 
 
-
-minibatch_size=100
-#max_sent_len=200
-#vec_size=100
-#gru_width=100
-#ngrams=(3,4,5)
-max_sent_len=30
-vec_size=100
-gru_width=100
-ngrams=(3,4,5)
-
-#Read vocabularies
-src_f_name="data/Europarl.en-fi.fi"
-trg_f_name="data/Europarl.en-fi.en"
-vs=data_dense.read_vocabularies("data/JRC-Acquis.en-fi.fi","data/JRC-Acquis.en-fi.en",False,ngrams) 
-vs.trainable=False
-
-ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
-
-
-test_size=1000
-
-data=[]
-def iter_wrapper(src_fname,trg_fname):
-    for src_sent,trg_sent in data_dense.iter_data(src_fname,trg_fname):
-        data.append((src_sent,trg_sent))
+def iter_wrapper(src_data,trg_data):
+    for src_sent,trg_sent in zip(src_data,trg_data):
         yield (src_sent,trg_sent),1.0
 
 
+def vectorize(voc_name,src_data,trg_data,mname):
 
-src_data=np.zeros((test_size,gru_width))
-trg_data=np.zeros((test_size,gru_width))
+    minibatch_size=100 # TODO: read these from somewhere
+    max_sent_len=200
+    gru_width=75
+    ngrams=(4,)
 
+    #Read vocabularies
+    vs=data_dense.read_vocabularies(voc_name,"xxx","xxx",False,ngrams) 
+    vs.trainable=False
 
-counter=0
-# for loop over minibatches
-for i,(mx,targets) in enumerate(data_dense.fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(src_f_name,trg_f_name),ngrams)):
-    src,trg=trained_model.predict(mx) # shape = (minibatch_size,gru_width)
-    # loop over items in minibatch
-    for j,(src_v,trg_v) in enumerate(zip(src,trg)):
-        src_data[counter]=src_v/np.linalg.norm(src_v)
-        trg_data[counter]=trg_v/np.linalg.norm(trg_v)
-        counter+=1
-        if counter==test_size:
+    # build matrices
+    ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
+    
+    # load model
+    trained_model=load_model(mname)
+
+    src_vectors=np.zeros((len(src_data),gru_width))
+    trg_vectors=np.zeros((len(src_data),gru_width))
+
+    # get vectors
+    # for loop over minibatches
+    counter=0    
+    for i,(mx,targets) in enumerate(data_dense.fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(src_data,trg_data),ngrams)):
+        src,trg=trained_model.predict(mx) # shape = (minibatch_size,gru_width)
+        # loop over items in minibatch
+        for j,(src_v,trg_v) in enumerate(zip(src,trg)):
+            src_vectors[counter]=src_v/np.linalg.norm(src_v)
+            trg_vectors[counter]=trg_v/np.linalg.norm(trg_v)
+            counter+=1
+            if counter==len(src_data):
+                break
+        if counter==len(src_data):
             break
-    if counter==test_size:
-        break
 
-ranks=[]
-verbose=True
+    return src_vectors,trg_vectors
+    
+    
+def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
 
-# run dot product
-for i in range(test_size):
-    sims=trg_data.dot(src_data[i])  
-    N=10
-    results=sorted(((sims[idx],idx,data[idx][1]) for idx in np.argpartition(sims,-N-1)), reverse=True)#[-N-1:]), reverse=True)
-#    if results[0][0]<0.6:
-#        continue
-    result_idx=[idx for (sim,idx,txt) in results]
-    ranks.append(result_idx.index(i)+1)
-    if verbose:
-        print("source:",i,data[i][0].strip(),np.dot(src_data[i],trg_data[i]))
-        print("reference:",data[i][1].strip())
-        print("rank:",result_idx.index(i)+1)
-        for s,idx,txt in results[:10]:
-            print(idx,s,txt)
-        print("****")
+    ranks=[]
+    all_similarities=[] # list of sorted lists
 
-print("Avg:",sum(ranks)/len(ranks))
-print("#num:",len(ranks))
+    # run dot product
+    for i in range(len(src_vectors)):
+        sims=trg_vectors.dot(src_vectors[i])
+        all_similarities.append(sims)  
+        N=10
+#        results=sorted(((sims[idx],idx,trg_data[idx]) for idx in np.argpartition(sims,-N-1)), reverse=True)#[-N-1:]), reverse=True)
+        results=sorted(((sims[idx],idx,trg_data[idx]) for idx,s in enumerate(sims)), reverse=True)#[-N-1:]), reverse=True)
+#        if results[0][0]<0.6:
+#            continue
+        result_idx=[idx for (sim,idx,txt) in results]
+        ranks.append(result_idx.index(i)+1)
+        if verbose:
+            print("source:",i,src_data[i],np.dot(src_vectors[i],trg_vectors[i]))
+            print("reference:",trg_data[i])
+            print("rank:",result_idx.index(i)+1)
+            for s,idx,txt in results[:10]:
+                print(idx,s,txt)
+            print("****")
 
+    print("Keras:")
+    print("Avg:",sum(ranks)/len(ranks))
+    print("#num:",len(ranks))
+    
+    return all_similarities
+    
+    
+def test(src_fname,trg_fname,mname,voc_name):
 
+    # read sentences
+    src_data=[]
+    trg_data=[]
+    for src_line,trg_line in data_dense.iter_data(src_fname,trg_fname,max_pairs=1000):
+        src_data.append(src_line.strip())
+        trg_data.append(trg_line.strip())
+        
+    src_vectors,trg_vectors=vectorize(voc_name,src_data,trg_data,mname)
+    similarities=rank(src_vectors,trg_vectors,src_data,trg_data)
+
+if __name__=="__main__":
+
+    import argparse
+
+    parser = argparse.ArgumentParser(description='')
+    g=parser.add_argument_group("Reguired arguments")
+    g.add_argument('-m', '--model', type=str, help='Give model name')
+    #g.add_argument('--cutoff', type=int, default=2, help='Frequency threshold, how many times an ngram must occur to be included? (default %(default)d)')
+    g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
+    
+    args = parser.parse_args()
+
+    if args.model==None or args.vocabulary==None:
+        parser.print_help()
+        sys.exit(1)
+
+    test("data/all.test.fi","data/all.test.en",args.model,args.vocabulary)
+    
 
 #for mx,targets in batch_iter: # input is shuffled!!!
 #    src,trg=model.predict(mx)
