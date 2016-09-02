@@ -8,7 +8,7 @@ def combined(src_fname,trg_fname,keras_model,keras_vocabulary,verbose=True):
 
     src_data=[]
     trg_data=[]
-    for src_line,trg_line in iter_data(src_fname,trg_fname,max_pairs=1000):
+    for src_line,trg_line in iter_data(src_fname,trg_fname,max_pairs=10000):
         src_data.append(src_line.strip())
         trg_data.append(trg_line.strip())
     
@@ -65,6 +65,7 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    combined("data/all.test.fi","data/all.test.en",args.model,args.vocabulary)
+#    combined("../Finnish-dep-parser/all.test.fi.tokenized","data/all.test.en",args.model,args.vocabulary)
+    combined("data/downloads/wtower.fi-en.fi","data/downloads/wtower.fi-en.en",args.model,args.vocabulary)
 
     

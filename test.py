@@ -33,23 +33,23 @@ def iter_wrapper(src_data,trg_data):
 
 def vectorize(voc_name,src_data,trg_data,mname):
 
-    minibatch_size=100 # TODO: read these from somewhere
-    max_sent_len=200
-    gru_width=75
-    ngrams=(4,)
+    minibatch_size=100 
+    ngrams=(4,) # TODO: read this from somewhere
 
     #Read vocabularies
     vs=data_dense.read_vocabularies(voc_name,"xxx","xxx",False,ngrams) 
     vs.trainable=False
-
-    # build matrices
-    ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
     
     # load model
     trained_model=load_model(mname)
-
-    src_vectors=np.zeros((len(src_data),gru_width))
-    trg_vectors=np.zeros((len(src_data),gru_width))
+    output_size=trained_model.get_layer('source_dense').output_shape[1]
+    max_sent_len=trained_model.get_layer('source_ngrams_{n}'.format(n=ngrams[0])).output_shape[1]
+    
+    # build matrices
+    ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
+    
+    src_vectors=np.zeros((len(src_data),output_size))
+    trg_vectors=np.zeros((len(src_data),output_size))
 
     # get vectors
     # for loop over minibatches
@@ -128,7 +128,7 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    test("data/all.test.fi","data/all.test.en",args.model,args.vocabulary)
+    test("../Finnish-dep-parser/all.test.fi.tokenized","data/all.test.en",args.model,args.vocabulary)
     
 
 #for mx,targets in batch_iter: # input is shuffled!!!
