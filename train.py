@@ -80,8 +80,8 @@ trg_gru_all=merge(trg_gru_out+[trg_len_vec],mode='concat',concat_axis=1,name="tr
 # src_cat_all=merge([src_gru_all,src_len_vec],mode='concat',concat_axis=1)
 # trg_cat_all=merge([trg_gru_all,trg_len_vec],mode='concat',concat_axis=1)
 
-src_dense=Dense(gru_width,name="source_dense")
-trg_dense=Dense(gru_width,name="target_dense")
+src_dense=Dense(2*gru_width,activation="relu",name="source_dense")
+trg_dense=Dense(2*gru_width,activation="relu",name="target_dense")
 src_dense_out=src_dense(src_gru_all)
 trg_dense_out=trg_dense(trg_gru_all)
 
@@ -113,7 +113,7 @@ with open("keras_model.json", "w") as json_file:
     json_file.write(model_json)
 
 # callback to save weights after each epoch
-save_cb=ModelCheckpoint(filepath="keras_weights.h5", monitor='loss', verbose=1, save_best_only=False, mode='auto')
+save_cb=ModelCheckpoint(filepath="keras_weights.h5", monitor='loss', verbose=1, save_best_only=True, mode='auto')
 
 samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size/20)*minibatch_size #2* because we also have the negative examples
 model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb])
