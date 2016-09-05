@@ -100,12 +100,12 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
     return all_similarities
     
     
-def test(src_fname,trg_fname,mname,voc_name):
+def test(src_fname,trg_fname,mname,voc_name,max_pairs):
 
     # read sentences
     src_data=[]
     trg_data=[]
-    for src_line,trg_line in data_dense.iter_data(src_fname,trg_fname,max_pairs=1000):
+    for src_line,trg_line in data_dense.iter_data(src_fname,trg_fname,max_pairs=max_pairs):
         src_data.append(src_line.strip())
         trg_data.append(trg_line.strip())
         
@@ -121,6 +121,7 @@ if __name__=="__main__":
     g.add_argument('-m', '--model', type=str, help='Give model name')
     #g.add_argument('--cutoff', type=int, default=2, help='Frequency threshold, how many times an ngram must occur to be included? (default %(default)d)')
     g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
+    g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default={n}'.format(n=1000))
     
     args = parser.parse_args()
 
@@ -128,7 +129,7 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    test("../Finnish-dep-parser/all.test.fi.tokenized","data/all.test.en",args.model,args.vocabulary)
+    test("data/all.test.fi.tokenized","data/all.test.en.tokenized",args.model,args.vocabulary,args.max_pairs)
     
 
 #for mx,targets in batch_iter: # input is shuffled!!!

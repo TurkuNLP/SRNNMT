@@ -102,7 +102,7 @@ def test(src_fname,trg_fname):
      
 if __name__=="__main__":
 
-    test("data/all.test.fi","data/all.test.en")        
+    test("data/all.test.fi.tokenized","data/all.test.en.tokenized")        
 
     
 

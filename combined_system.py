@@ -4,11 +4,11 @@ import test
 import dictionary_baseline
 
 
-def combined(src_fname,trg_fname,keras_model,keras_vocabulary,verbose=True):
+def combined(src_fname,trg_fname,keras_model,keras_vocabulary,max_pairs,verbose=True):
 
     src_data=[]
     trg_data=[]
-    for src_line,trg_line in iter_data(src_fname,trg_fname,max_pairs=10000):
+    for src_line,trg_line in iter_data(src_fname,trg_fname,max_pairs=max_pairs):
         src_data.append(src_line.strip())
         trg_data.append(trg_line.strip())
     
@@ -58,6 +58,8 @@ if __name__=="__main__":
     g.add_argument('-m', '--model', type=str, help='Give keras model name')
     #g.add_argument('--cutoff', type=int, default=2, help='Frequency threshold, how many times an ngram must occur to be included? (default %(default)d)')
     g.add_argument('-v', '--vocabulary', type=str, help='Give keras vocabulary file')
+    g.add_argument('--verbose', action="store_true", default=False, help='Print sentences, default=False')
+    g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default=1000')
     
     args = parser.parse_args()
 
@@ -65,7 +67,7 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-#    combined("../Finnish-dep-parser/all.test.fi.tokenized","data/all.test.en",args.model,args.vocabulary)
-    combined("data/downloads/wtower.fi-en.fi","data/downloads/wtower.fi-en.en",args.model,args.vocabulary)
+    combined("data/all.test.fi.tokenized","data/all.test.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
+#    combined("data/downloads/wtower.fi-en.fi","data/downloads/wtower.fi-en.en",args.model,args.vocabulary)
 
     
