@@ -12,9 +12,9 @@ import data_dense
 
 # load model
 def load_model(mname):
-    with open("/home/ginter/SRNNMT/keras_model.json","r") as f:
+    with open(mname+".json","r") as f:
         trained_model=model_from_json(f.read())
-        trained_model.load_weights("/home/ginter/SRNNMT/keras_weights.h5")
+        trained_model.load_weights(mname+".h5")
         trained_model.layers.pop() # remove cosine and flatten layers
         trained_model.layers.pop()
         trained_model.outputs = [trained_model.get_layer('source_dense').output,trained_model.get_layer('target_dense').output] # define new outputs
