@@ -68,6 +68,7 @@ if __name__=="__main__":
         sys.exit(1)
 
     combined("data/all.test.fi.tokenized","data/all.test.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
+#    combined("data/wmttest.fi-en.fi.tokenized","data/wmttest.fi-en.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
 #    combined("data/downloads/wtower.fi-en.fi","data/downloads/wtower.fi-en.en",args.model,args.vocabulary)
 
     

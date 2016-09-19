@@ -175,21 +175,23 @@ def rank_keras(src_vectors,trg_vectors,src_sentences,trg_sentences,verbose=True)
     src_data=[s.strip() for s in gzip.open(src_sentences,"rt")]
     trg_data=[s.strip() for s in gzip.open(trg_sentences,"rt")]
     
-    src_vectors=np.fromfile(src_vectors,np.float32).reshape(len(src_data),150)
-    trg_vectors=np.fromfile(trg_vectors,np.float32).reshape(len(trg_data),150)
+    src_vectors=np.fromfile(src_vectors,np.float32).reshape(len(src_data),150)[:100000,:]
+    trg_vectors=np.fromfile(trg_vectors,np.float32).reshape(len(trg_data),150)[:100000,:]
+
+    src_data=src_data[:100000]
+    trg_data=trg_data[:100000]
     
-    
-    print("#",len(src_data),len(trg_data))
+    print("#",len(src_data),len(trg_data),file=sys.stderr)
     
     to_keep=[]
     
     # dot product
     sim_matrix=np.dot(src_vectors,trg_vectors.T)
-#    print("dot product ready")
+    print("dot product ready",file=sys.stderr)
     
     # argpartition
     partition_matrix=np.argpartition(sim_matrix,-3000)#[-N-1:]
-#    print("partition ready")
+    print("partition ready",file=sys.stderr)
     
     results=[]
     for i,row in enumerate(partition_matrix):
@@ -283,13 +285,13 @@ def rank_dictionary(keras_results,verbose=True):
             
     for (best_sim,src_sent,translations) in sorted(all_scores, key=lambda x:x[0], reverse=True):
         print("source:",src_sent)
-        for (s,trg_sent) in translations[:10]:
+        for (s,trg_sent) in translations[:20]:
             print(trg_sent,s)
         print("")
         
 #    print("Dictionary baseline:")    
 #    print("Avg:",sum(ranks)/len(ranks))
-    print("# num:",len(all_scores))
+    print("# num:",len(all_scores),file=sys.stderr)
 #    print("n/a:",na)
     
 #    return all_scores
@@ -327,7 +329,7 @@ if __name__=="__main__":
         sys.exit(1)
 
 
-    vectorize(args.vocabulary,args.model,"pbv4_ud.part-00.gz","encow14ax01.xml.gz",args.max_pairs)
+#    vectorize(args.vocabulary,args.model,"pbv4_ud.part-00.gz","encow14ax01.xml.gz",args.max_pairs)
 #    vectorize(args.vocabulary,args.model,"data/all.test.fi.tokenized","data/all.test.en.tokenized")
     
 #    to_keep=rank_keras("finnish_vectors.npy","english_vectors.npy","finnish_sentences.txt.gz","english_sentences.txt.gz",verbose=False)

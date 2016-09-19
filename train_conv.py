@@ -65,7 +65,7 @@ class ZeroMaskedEntries(Layer):
     def compute_mask(self, input_shape, input_mask=None):
         return None
 
-model_name="conv_model"
+model_name="conv_model_dev"
 
 minibatch_size=400
 max_sent_len=200
@@ -93,8 +93,8 @@ trg_emb=Embedding(len(vs.target_ngrams[4]), vec_size, input_length=max_sent_len,
 #trg_embed_zeroed = ZeroMaskedEntries()(trg_emb)
 
 # Conv
-src_conv_out=Convolution1D(vec_size, 5, border_mode="same", activation="relu")(src_embed) # output shape=(number of timesteps, vec_size)
-trg_conv_out=Convolution1D(vec_size, 5, border_mode="same", activation="relu")(trg_embed)
+src_conv_out=Convolution1D(vec_size, 5, border_mode="same", activation="tanh")(src_emb) # output shape=(number of timesteps, vec_size)
+trg_conv_out=Convolution1D(vec_size, 5, border_mode="same", activation="tanh")(trg_emb)
 
 src_maxpool_out=MaxPooling1D(pool_length=max_sent_len)(src_conv_out)
 trg_maxpool_out=MaxPooling1D(pool_length=max_sent_len)(trg_conv_out)
@@ -136,6 +136,9 @@ print(model.summary())
 inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
 batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter,ngrams)
 
+#dev iter
+dev_batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,data_dense.InfiniteDataIterator("data/all.dev.new.fi.tokenized","data/all.dev.new.en.tokenized"),ngrams)
+
 # import pdb
 # pdb.set_trace()
 
@@ -145,10 +148,10 @@ with open(model_name+".json", "w") as json_file:
     json_file.write(model_json)
 
 # callback to save weights after each epoch
-save_cb=ModelCheckpoint(filepath=model_name+".h5", monitor='loss', verbose=1, save_best_only=True, mode='auto')
+save_cb=ModelCheckpoint(filepath=model_name+".h5", monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
 
 samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size/20)*minibatch_size #2* because we also have the negative examples
-model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb])
+model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb],validation_data=dev_batch_iter,nb_val_samples=1000)
 
 #counter=1
 #while True:

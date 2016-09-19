@@ -149,7 +149,7 @@ def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
     trained_model=load_model(mname)
     output_size=trained_model.get_layer('source_dense').output_shape[1]
     max_sent_len=trained_model.get_layer('source_ngrams_{n}'.format(n=ngrams[0])).output_shape[1]
-    print(output_size,max_sent_len)
+    print(output_size,max_sent_len,file=sys.stderr)
     
     # build matrices
     ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
@@ -191,11 +191,11 @@ def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
 
 def rank_keras(src_vectors,trg_vectors,src_sentences,trg_sentences,verbose=True):
     
-#    src_data=[s.strip() for s in gzip.open(src_sentences,"rt")]
-#    trg_data=[s.strip() for s in gzip.open(trg_sentences,"rt")]
+    src_data=[s.strip() for s in gzip.open(src_sentences,"rt")]
+    trg_data=[s.strip() for s in gzip.open(trg_sentences,"rt")]
     
     src_vectors=np.fromfile(src_vectors,np.float32)
-    src_vectors=src_vectors.reshape(int(len(src_vectors)/150),150)#[:10000,:]
+    src_vectors=src_vectors.reshape(int(len(src_vectors)/150),150)#[:1000,:]
     trg_vectors=np.fromfile(trg_vectors,np.float32)
     trg_vectors=trg_vectors.reshape(int(len(trg_vectors)/150),150).T
     
@@ -212,14 +212,19 @@ def rank_keras(src_vectors,trg_vectors,src_sentences,trg_sentences,verbose=True)
     
         # argpartition
         partition_matrix=np.argpartition(sim_matrix,(-3000,-1))[:,-3000:]
-        print(partition_matrix.shape)
+        print(partition_matrix.shape,file=sys.stderr)
         print(i,"partition ready",file=sys.stderr)
     
         for j,row in enumerate(partition_matrix):
             if sim_matrix[j,row[-1]]<0.2:
                 continue
-            results.append((i+j,[(sim_matrix[j,idx],idx) for idx in row]))
-        print(i,"results ready for",len(results),"sentences",file=sys.stderr)
+            
+#            results.append((i+j,[(sim_matrix[j,idx],idx) for idx in row]))
+            print("source:",src_data[i+j])
+            for idx in row:
+                print(sim_matrix[j,idx],trg_data[idx])
+            print()
+#        print(i,"results ready for",len(results),"sentences",file=sys.stderr)
     
     
     return results
@@ -315,7 +320,7 @@ if __name__=="__main__":
 
 
     keras_results=rank_keras("vdata_uniq/fi_vec_len{n}.npy".format(n=args.fi_len),"vdata_uniq/en_vec_len{n}.npy".format(n=args.en_len),"vdata_uniq/fi_sent_len{n}.txt.gz".format(n=args.fi_len),"vdata_uniq/en_sent_len{n}.txt.gz".format(n=args.en_len),verbose=False)
-    rank_dictionary(keras_results,"vdata_uniq/fi_sent_len{n}.txt.gz".format(n=args.fi_len),"vdata_uniq/en_sent_len{n}.txt.gz".format(n=args.en_len),verbose=False)
+#    rank_dictionary(keras_results,"vdata_uniq/fi_sent_len{n}.txt.gz".format(n=args.fi_len),"vdata_uniq/en_sent_len{n}.txt.gz".format(n=args.en_len),verbose=False)
     
 #    test("data/all.test.fi.tokenized","data/all.test.en.tokenized",args.model,args.vocabulary,args.max_pairs)
     

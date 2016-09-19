@@ -129,7 +129,8 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    test("data/all.test.fi.tokenized","data/all.test.en.tokenized",args.model,args.vocabulary,args.max_pairs)
+    test("data/all.test.new.fi.tokenized","data/all.test.new.en.tokenized",args.model,args.vocabulary,args.max_pairs)
+#    test("data/wmttest.fi-en.fi.tokenized","data/wmttest.fi-en.en.tokenized",args.model,args.vocabulary,args.max_pairs)
     
 
 #for mx,targets in batch_iter: # input is shuffled!!!

@@ -29,6 +29,8 @@ class CustomCallback(Callback):
     def on_epoch_end(self, epoch, logs={}):
         pass
 
+model_name="gru_model"
+
 minibatch_size=400
 max_sent_len=200
 vec_size=75
@@ -38,8 +40,8 @@ ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
         
 #Read vocabularies
 src_f_name="data/all.train.fi.tokenized"
-trg_f_name="data/all.train.en"
-vs=data_dense.read_vocabularies("unidirectional-ngrams-fitok-vocab.pickle",src_f_name,trg_f_name,False,ngrams)
+trg_f_name="data/all.train.en.tokenized"
+vs=data_dense.read_vocabularies(model_name+"-vocab.pickle",src_f_name,trg_f_name,False,ngrams)
 vs.trainable=False
 
 #Inputs: list of one Input per N-gram size
@@ -106,19 +108,22 @@ print(model.summary())
 inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
 batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter,ngrams)
 
+#dev iter
+dev_batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,data_dense.InfiniteDataIterator("data/all.dev.new.fi.tokenized","data/all.dev.new.en.tokenized"),ngrams)
+
 # import pdb
 # pdb.set_trace()
 
 # save model json
 model_json = model.to_json()
-with open("keras_model.json", "w") as json_file:
+with open(model_name+".json", "w") as json_file:
     json_file.write(model_json)
 
 # callback to save weights after each epoch
-save_cb=ModelCheckpoint(filepath="keras_weights.h5", monitor='loss', verbose=1, save_best_only=True, mode='auto')
+save_cb=ModelCheckpoint(filepath=model_name+".h5", monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
 
 samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size/20)*minibatch_size #2* because we also have the negative examples
-model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb])
+model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb],validation_data=dev_batch_iter,nb_val_samples=1000)
 
 #counter=1
 #while True:
