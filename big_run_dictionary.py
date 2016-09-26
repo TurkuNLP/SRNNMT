@@ -36,7 +36,7 @@ def rank_dictionary(dirname,fname):
     sim_matrix=np.fromfile(dirname+"/"+fname+".sim.npy",np.float32)
     sim_matrix=sim_matrix.reshape(int(len(sim_matrix)/3000),3000)
     
-    idx_matrix=np.fromfile(dirname+"/"+fname+".idx.npy",np.int)
+    idx_matrix=np.fromfile(dirname+"/"+fname+".idx.npy",np.int32)
     idx_matrix=idx_matrix.reshape(int(len(idx_matrix)/3000),3000)
     
 #    ranks=[]

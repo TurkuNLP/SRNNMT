@@ -50,7 +50,8 @@ def rank_keras(dirname,src_fname,trg_fname):
         print(i,"dot product ready",file=sys.stderr)
     
         # argpartition
-        partition_matrix=np.argpartition(sim_matrix,(-keep_point,-1))[:,-keep_point:]
+        partition_matrix=np.argpartition(sim_matrix,(-keep_point,-1))[:,-keep_point:].astype(np.int32)
+        #partition_matrix=partition_matrix
         print(partition_matrix.shape,file=sys.stderr)
         print(i,"partition ready",file=sys.stderr)
         
@@ -58,10 +59,12 @@ def rank_keras(dirname,src_fname,trg_fname):
         rows=np.array(range(sim_matrix.shape[0]))[:,np.newaxis]
         sliced_sim_matrix=sim_matrix[rows,partition_matrix]
         
+        
         # ...print
         for x,(index_row,sim_row) in enumerate(zip(partition_matrix,sliced_sim_matrix)):
             index_row.tofile(out_idx)
             sim_row.tofile(out_sim)
+            
 #            print("new source:",src_data[i+x],file=sys.stderr)
 #            for idx,sim in zip(index_row,sim_row):
 #                print(sim,trg_data[idx],file=sys.stderr)
