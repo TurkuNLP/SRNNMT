@@ -1,4 +1,4 @@
-from keras.models import Sequential, Graph, Model
+from keras.models import Sequential, Graph, Model, model_from_json
 from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten,ActivityRegularization,Convolution1D,MaxPooling1D
 # from keras.layers.core import Masking
 from keras.layers.recurrent import GRU
@@ -32,40 +32,14 @@ class CustomCallback(Callback):
     def on_epoch_end(self, epoch, logs={}):
         pass
         
-class ZeroMaskedEntries(Layer):
-    """
-    @sergeyf https://github.com/fchollet/keras/issues/2728
+
+
+# model name
+if len(sys.argv)<2:
+    print("Error: Give model name.")
+    sys.exit(1)
     
-    This layer is called after an Embedding layer.
-    It zeros out all of the masked-out embeddings.
-    It also swallows the mask without passing it on.
-    You can change this to default pass-on behavior as follows:
-
-    def compute_mask(self, x, mask=None):
-        if not self.mask_zero:
-            return None
-        else:
-            return K.not_equal(x, 0)
-    """
-
-    def __init__(self, **kwargs):
-        self.support_mask = True
-        super(ZeroMaskedEntries, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        self.output_dim = input_shape[1]
-        self.repeat_dim = input_shape[2]
-
-    def call(self, x, mask=None):
-        mask = K.cast(mask, 'float32')
-        mask = K.repeat(mask, self.repeat_dim)
-        mask = K.permute_dimensions(mask, (0, 2, 1))
-        return x * mask
-
-    def compute_mask(self, input_shape, input_mask=None):
-        return None
-
-model_name="conv_model_dev"
+model_name=sys.argv[1]
 
 minibatch_size=400
 max_sent_len=200
@@ -81,48 +55,30 @@ vs=data_dense.read_vocabularies(model_name+"-vocab.pickle",src_f_name,trg_f_name
 vs.trainable=False
 
 #Inputs: list of one Input per N-gram size
-src_inp=Input(shape=(max_sent_len,), name="source_ngrams_4", dtype="int32")
-trg_inp=Input(shape=(max_sent_len,), name="target_ngrams_4", dtype="int32")
+src_inp=Input(shape=(max_sent_len,), name="source_ngrams_{N}".format(N=ngrams[0]), dtype="int32")
+trg_inp=Input(shape=(max_sent_len,), name="target_ngrams_{N}".format(N=ngrams[0]), dtype="int32")
 
 #Embeddings: list of one Embedding per input
-src_emb=Embedding(len(vs.source_ngrams[4]), vec_size, input_length=max_sent_len, name="source_embedding_4")(src_inp)
-trg_emb=Embedding(len(vs.target_ngrams[4]), vec_size, input_length=max_sent_len, name="target_embedding_4")(trg_inp)
+src_emb=Embedding(len(vs.source_ngrams[ngrams[0]]), vec_size, input_length=max_sent_len, name="source_embedding_{N}".format(N=ngrams[0]))(src_inp)
+trg_emb=Embedding(len(vs.target_ngrams[ngrams[0]]), vec_size, input_length=max_sent_len, name="target_embedding_{N}".format(N=ngrams[0]))(trg_inp)
 
-# eat masking
-#src_embed_zeroed = ZeroMaskedEntries()(src_emb)
-#trg_embed_zeroed = ZeroMaskedEntries()(trg_emb)
 
 # Conv
-src_conv_out=Convolution1D(vec_size, 5, border_mode="same", activation="tanh")(src_emb) # output shape=(number of timesteps, vec_size)
-trg_conv_out=Convolution1D(vec_size, 5, border_mode="same", activation="tanh")(trg_emb)
+src_conv_out=Convolution1D(vec_size, 5, border_mode="same", activation="relu")(src_emb) # output shape=(number of timesteps, vec_size)
+trg_conv_out=Convolution1D(vec_size, 5, border_mode="same", activation="relu")(trg_emb)
 
 src_maxpool_out=MaxPooling1D(pool_length=max_sent_len)(src_conv_out)
 trg_maxpool_out=MaxPooling1D(pool_length=max_sent_len)(trg_conv_out)
 
-#src_conv_2=Convolution1D(vec_size, 3, border_mode="same")(src_maxpool_out) # output shape=(number of timesteps, vec_size)
-#trg_conv_2=Convolution1D(vec_size, 3, border_mode="same")(trg_maxpool_out)
-
-#src_maxpool_out2=MaxPooling1D(pool_length=100)(src_conv_2)
-#trg_maxpool_out2=MaxPooling1D(pool_length=100)(trg_conv_2)
 
 src_flat_out=Flatten()(src_maxpool_out)
 trg_flat_out=Flatten()(trg_maxpool_out)
 
-## gru to get rid of the sequence
-#src_gru_out=GRU(gru_width,consume_less="gpu",dropout_W=0.3,activation="relu",return_sequences=False,name="source_GRU")(src_maxpool_out)
-#trg_gru_out=GRU(gru_width,consume_less="gpu",dropout_W=0.3,activation="relu",return_sequences=False,name="target_GRU")(trg_maxpool_out)
 
 # yet one dense
 src_dense_out=Dense(gru_width,name="source_dense")(src_flat_out)
 trg_dense_out=Dense(gru_width,name="target_dense")(trg_flat_out)
 
-
-
-#..regularize
-#src_dense_reg=ActivityRegularization(l2=1.0,name="source_dense")
-#trg_dense_reg=ActivityRegularization(l2=1.0,name="target_dense")
-#src_dense_reg_out=src_dense_reg(src_dense_out)
-#trg_dense_reg_out=trg_dense_reg(trg_dense_out)
 
 #...and cosine between the source and target side
 merged_out=merge([src_dense_out,trg_dense_out],mode='cos',dot_axes=1)
@@ -130,6 +86,7 @@ flatten=Flatten()
 merged_out_flat=flatten(merged_out)
 
 model=Model(input=[src_inp,trg_inp], output=merged_out_flat)
+
 model.compile(optimizer='adam',loss='mse')
 print(model.summary())
 
@@ -148,7 +105,7 @@ with open(model_name+".json", "w") as json_file:
     json_file.write(model_json)
 
 # callback to save weights after each epoch
-save_cb=ModelCheckpoint(filepath=model_name+".h5", monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
+save_cb=ModelCheckpoint(filepath=model_name+".{epoch:02d}.h5", monitor='val_loss', verbose=1, save_best_only=False, mode='auto')
 
 samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size/20)*minibatch_size #2* because we also have the negative examples
 model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb],validation_data=dev_batch_iter,nb_val_samples=1000)
