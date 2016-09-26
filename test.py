@@ -100,7 +100,7 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
     return all_similarities
     
     
-def test(src_fname,trg_fname,mname,voc_name,max_pairs):
+def test(src_fname,trg_fname,mname,voc_name,max_pairs,verbose):
 
     # read sentences
     src_data=[]
@@ -110,7 +110,7 @@ def test(src_fname,trg_fname,mname,voc_name,max_pairs):
         trg_data.append(trg_line.strip())
         
     src_vectors,trg_vectors=vectorize(voc_name,src_data,trg_data,mname)
-    similarities=rank(src_vectors,trg_vectors,src_data,trg_data)
+    similarities=rank(src_vectors,trg_vectors,src_data,trg_data,verbose=verbose)
 
 if __name__=="__main__":
 
@@ -121,6 +121,7 @@ if __name__=="__main__":
     g.add_argument('-m', '--model', type=str, help='Give model name')
     #g.add_argument('--cutoff', type=int, default=2, help='Frequency threshold, how many times an ngram must occur to be included? (default %(default)d)')
     g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
+    g.add_argument('--verbose', action='store_true', default=False, help='Give vocabulary file')
     g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default={n}'.format(n=1000))
     
     args = parser.parse_args()
@@ -129,7 +130,7 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    test("data/all.test.new.fi.tokenized","data/all.test.new.en.tokenized",args.model,args.vocabulary,args.max_pairs)
+    test("data/all.test.new.fi.tokenized","data/all.test.new.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
 #    test("data/wmttest.fi-en.fi.tokenized","data/wmttest.fi-en.en.tokenized",args.model,args.vocabulary,args.max_pairs)
     
 

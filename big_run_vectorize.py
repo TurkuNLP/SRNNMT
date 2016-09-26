@@ -35,7 +35,7 @@ def good_text(sent):
 def read_fin_parsebank(dirname,max_sent=10000):
     fnames=glob.glob(dirname+"/*.gz")
     fnames.sort()
-    print(fnames)
+#    print(fnames)
     counter=0
     uniq=set()
     for fname in fnames:
@@ -71,7 +71,7 @@ def sent_reader(f):
 def read_eng_parsebank(dirname,max_sent=10000):
     fnames=glob.glob(dirname+"/*.xml.gz")
     fnames.sort()
-    print(fnames)
+#    print(fnames)
     counter=0
     uniq=set()
     for fname in fnames:
@@ -132,7 +132,7 @@ def iter_wrapper(src_dirname,trg_dirname,max_sent=10000):
 
 def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
     # create files
-    outdir="vdata_test"
+    outdir="vdata_final"
     file_dict={}
     for i in range(min_len,max_len+1):
         file_dict["fi_sent_len{N}".format(N=i)]=gzip.open(outdir+"/fi_len{N}.txt.gz".format(N=i),"wt",encoding="utf-8")
