@@ -30,13 +30,13 @@ def rank_dictionary(dirname,fname):
     e2f_dictionary=build_dictionary("lex.e2f", "uniq.train.tokens.en.100K")
     
     src_fname,trg_fname=fname.split("+")
-    src_data=[s.strip() for s in gzip.open(dirname+"/"+src_fname+".txt.gz","rt")]
-    trg_data=[s.strip() for s in gzip.open(dirname+"/"+trg_fname+".txt.gz","rt")]
+    src_data=[s.strip() for s in gzip.open("{D}/{F}.txt.gz".format(D=dirname,F=src_fname),"rt")]
+    trg_data=[s.strip() for s in gzip.open("{D}/{F}.txt.gz".format(D=dirname,F=trg_fname),"rt")]
     
-    sim_matrix=np.fromfile(dirname+"/"+fname+".sim.npy",np.float32)
+    sim_matrix=np.fromfile("{D}_out/{F}.sim.npy".format(D=dirname,F=fname),np.float32)
     sim_matrix=sim_matrix.reshape(int(len(sim_matrix)/3000),3000)
     
-    idx_matrix=np.fromfile(dirname+"/"+fname+".idx.npy",np.int32)
+    idx_matrix=np.fromfile("{D}_out/{F}.idx.npy".format(D=dirname,F=fname),np.int32)
     idx_matrix=idx_matrix.reshape(int(len(idx_matrix)/3000),3000)
     
 #    ranks=[]
@@ -87,25 +87,25 @@ def rank_dictionary(dirname,fname):
 
 if __name__=="__main__":
 
-#    import argparse
+    import argparse
 
-#    parser = argparse.ArgumentParser(description='')
-#    g=parser.add_argument_group("Reguired arguments")
-#    g.add_argument('-m', '--model', type=str, help='Give model name')
+    parser = argparse.ArgumentParser(description='')
+    g=parser.add_argument_group("Reguired arguments")
+    g.add_argument('-f', '--file', type=str, help='Give file name')
 #    g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
 #    g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default={n}'.format(n=1000))
 #    g.add_argument('--fi_len', type=int, help='Finnish matrix len')
 #    g.add_argument('--en_len', type=int, help='English matrix len')
     
-#    args = parser.parse_args()
+    args = parser.parse_args()
 
-#    if args.model==None or args.vocabulary==None:
-#        parser.print_help()
-#        sys.exit(1)
+    if args.file==None:
+        parser.print_help()
+        sys.exit(1)
 
 
 
-    rank_dictionary("vdata_test","fi_len12+en_len12")
+    rank_dictionary("vdata_test",args.file)
     
     
 

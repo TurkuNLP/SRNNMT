@@ -26,18 +26,18 @@ filter_regex=re.compile("[A-Za-zÅÄÖåäö]")
 
 def rank_keras(dirname,src_fname,trg_fname):
     
-    src_data=[s.strip() for s in gzip.open(dirname+"/"+src_fname+".txt.gz","rt")]
-    trg_data=[s.strip() for s in gzip.open(dirname+"/"+trg_fname+".txt.gz","rt")]
+#    src_data=[s.strip() for s in gzip.open(dirname+"/"+src_fname+".txt.gz","rt")]
+#    trg_data=[s.strip() for s in gzip.open(dirname+"/"+trg_fname+".txt.gz","rt")]
     
-    src_vectors=np.fromfile(dirname+"/"+src_fname+".npy",np.float32)
+    src_vectors=np.fromfile("{D}/{F}.npy".format(D=dirname,F=src_fname),np.float32)
     src_vectors=src_vectors.reshape(int(len(src_vectors)/150),150)#[:1000,:]
-    trg_vectors=np.fromfile(dirname+"/"+trg_fname+".npy",np.float32)
+    trg_vectors=np.fromfile("{D}/{F}.npy".format(D=dirname,F=trg_fname),np.float32)
     trg_vectors=trg_vectors.reshape(int(len(trg_vectors)/150),150).T
     
     print("#",src_vectors.shape,trg_vectors.shape,file=sys.stderr)
     
-    out_sim=open(dirname+"/"+src_fname+"+"+trg_fname+".sim.npy","wb")
-    out_idx=open(dirname+"/"+src_fname+"+"+trg_fname+".idx.npy","wb")
+    out_sim=open("{D}_out/{SF}+{TF}.sim.npy".format(D=dirname,SF=src_fname,TF=trg_fname),"wb")
+    out_idx=open("{D}_out/{SF}+{TF}.idx.npy".format(D=dirname,SF=src_fname,TF=trg_fname),"wb")
     
     results=[]
     
@@ -102,7 +102,7 @@ if __name__=="__main__":
     g=parser.add_argument_group("Reguired arguments")
 #    g.add_argument('-m', '--model', type=str, help='Give model name')
 #    g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
-    g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default={n}'.format(n=1000))
+#    g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default={n}'.format(n=1000))
     g.add_argument('--fi_len', type=int, help='Finnish matrix len')
     g.add_argument('--en_len', type=int, help='English matrix len')
     
@@ -115,7 +115,7 @@ if __name__=="__main__":
 
 #    keras_results=rank_keras("vdata_uniq/fi_vec_len{n}.npy".format(n=args.fi_len),"vdata_uniq/en_vec_len{n}.npy".format(n=args.en_len),"vdata_uniq/fi_sent_len{n}.txt.gz".format(n=args.fi_len),"vdata_uniq/en_sent_len{n}.txt.gz".format(n=args.en_len),verbose=False)
 
-    keras_results=rank_keras("vdata_test","fi_len12","en_len12")
+    keras_results=rank_keras("vdata_test","fi_len{N}".format(N=args.fi_len),"en_len{N}".format(N=args.en_len))
 
 #    rank_dictionary(keras_results,"vdata_uniq/fi_sent_len{n}.txt.gz".format(n=args.fi_len),"vdata_uniq/en_sent_len{n}.txt.gz".format(n=args.en_len),verbose=False)
     
