@@ -9,6 +9,7 @@ import math
 import json
 import gzip
 import conllutil3 as cu
+import html
 
 import data_dense
 import re
@@ -68,7 +69,7 @@ def read_eng_parsebank(fname,max_sent=10000):
     uniq=set()
     for sent in sent_reader(gzip.open(fname,"rt",encoding="utf-8")):
         if min_len<=len(sent)<=max_len:
-            txt=" ".join(sent)
+            txt=html.unescape(" ".join(sent)) # cow corpus: &apos;
             if not good_text(txt):
                 continue
             if txt in uniq:
@@ -318,6 +319,8 @@ if __name__=="__main__":
 #    vectorize(args.vocabulary,args.model,"pbv4_ud.part-00.gz","encow14ax01.xml.gz",args.max_pairs)
 #    vectorize(args.vocabulary,args.model,"data/all.test.fi.tokenized","data/all.test.en.tokenized")
 
+#    for s in iter_wrapper("pbv4_ud.part-00.gz","encow14ax01.xml.gz",max_sent=1000):
+#        pass
 
     keras_results=rank_keras("vdata_uniq/fi_vec_len{n}.npy".format(n=args.fi_len),"vdata_uniq/en_vec_len{n}.npy".format(n=args.en_len),"vdata_uniq/fi_sent_len{n}.txt.gz".format(n=args.fi_len),"vdata_uniq/en_sent_len{n}.txt.gz".format(n=args.en_len),verbose=False)
 #    rank_dictionary(keras_results,"vdata_uniq/fi_sent_len{n}.txt.gz".format(n=args.fi_len),"vdata_uniq/en_sent_len{n}.txt.gz".format(n=args.en_len),verbose=False)
