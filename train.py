@@ -79,15 +79,8 @@ trg_gru_out=[trg_gru_n(trg_vec_n) for trg_vec_n,trg_gru_n in zip(trg_vec,trg_gru
 src_gru_all=merge(src_gru_out+[src_len_vec],mode='concat',concat_axis=1,name="src_gru_concat")
 trg_gru_all=merge(trg_gru_out+[trg_len_vec],mode='concat',concat_axis=1,name="trg_gru_concat")
 
-src_dense=Dense(2*gru_width,activation="tanh",name="source_dense_nonlinear")
-trg_dense=Dense(2*gru_width,activation="tanh",name="target_dense_nonlinear")
-src_dense_out=src_dense(src_gru_all)
-trg_dense_out=trg_dense(trg_gru_all)
-
-src_dense_lin=Dense(2*gru_width,name="source_dense")
-trg_dense_lin=Dense(2*gru_width,name="target_dense")
-src_dense_lin_out=src_dense_lin(src_dense_out)
-trg_dense_lin_out=trg_dense_lin(trg_dense_out)
+src_dense_lin_out=Dense(gru_width,name="source_dense")(src_gru_all)
+trg_dense_lin_out=Dense(gru_width,name="target_dense")(trg_gru_all)
 
 
 #..regularize
