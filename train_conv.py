@@ -49,8 +49,10 @@ ngrams=(4,)
 ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
         
 #Read vocabularies
-src_f_name="data/all.train.fi.tokenized"
-trg_f_name="data/all.train.en.tokenized"
+#src_f_name="data/all.train.fi.tokenized"
+#trg_f_name="data/all.train.en.tokenized"
+src_f_name="bible_data/bible.en-fi.fi.tok.train"
+trg_f_name="bible_data/bible.en-fi.en.tok.train"
 vs=data_dense.read_vocabularies(model_name+"-vocab.pickle",src_f_name,trg_f_name,False,ngrams)
 vs.trainable=False
 
@@ -94,7 +96,7 @@ inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
 batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,inf_iter,ngrams)
 
 #dev iter
-dev_batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,data_dense.InfiniteDataIterator("data/all.dev.new.fi.tokenized","data/all.dev.new.en.tokenized"),ngrams)
+dev_batch_iter=data_dense.fill_batch(minibatch_size,max_sent_len,vs,data_dense.InfiniteDataIterator("bible_data/bible.en-fi.fi.tok.devel","bible_data/bible.en-fi.en.tok.devel"),ngrams)
 
 # import pdb
 # pdb.set_trace()
@@ -108,7 +110,7 @@ with open(model_name+".json", "w") as json_file:
 save_cb=ModelCheckpoint(filepath=model_name+".{epoch:02d}.h5", monitor='val_loss', verbose=1, save_best_only=False, mode='auto')
 
 samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size/20)*minibatch_size #2* because we also have the negative examples
-model.fit_generator(batch_iter,samples_per_epoch,60,callbacks=[save_cb],validation_data=dev_batch_iter,nb_val_samples=1000)
+model.fit_generator(batch_iter,samples_per_epoch,60*2,callbacks=[save_cb],validation_data=dev_batch_iter,nb_val_samples=1062)
 
 #counter=1
 #while True:

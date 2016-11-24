@@ -12,6 +12,10 @@ import conllutil3 as cu
 import html
 import glob
 import itertools
+import pickle
+from scipy.sparse import csr_matrix,csc_matrix,coo_matrix
+import hashlib
+import array
 
 import data_dense
 import re
@@ -33,14 +37,17 @@ def good_text(sent):
         return False
 
 def read_fin_parsebank(dirname,max_sent=10000):
+    total_count=0
+    yielded=0
     fnames=glob.glob(dirname+"/*.gz")
     fnames.sort()
 #    print(fnames)
     counter=0
     uniq=set()
     for fname in fnames:
-        print(fname,file=sys.stderr)
+        print(fname,file=sys.stderr,flush=True)
         for comm, sent in cu.read_conllu(gzip.open(fname,"rt",encoding="utf-8")):
+            total_count+=1
             if min_len<=len(sent)<=max_len:
                 txt=" ".join(line[cu.FORM] for line in sent)
                 if not good_text(txt):
@@ -52,7 +59,8 @@ def read_fin_parsebank(dirname,max_sent=10000):
                 counter+=1
 #            if max_sent!=0 and counter==max_sent:
 #                break
-                
+    print("Fin parsebank:",total_count,file=sys.stderr)
+    print("Vectorized:",count,file=sys.stderr)
 
 def sent_reader(f):
     words=[]
@@ -72,11 +80,13 @@ def read_eng_parsebank(dirname,max_sent=10000):
     fnames=glob.glob(dirname+"/*.xml.gz")
     fnames.sort()
 #    print(fnames)
+    total_count=0
     counter=0
     uniq=set()
     for fname in fnames:
-        print(fname,file=sys.stderr)
+        print(fname,file=sys.stderr,flush=True)
         for sent in sent_reader(gzip.open(fname,"rt",encoding="utf-8")):
+            total_count+=1
             if min_len<=len(sent)<=max_len:
                 txt=html.unescape(" ".join(sent)) # cow corpus: &apos;
                 if not good_text(txt):
@@ -88,6 +98,56 @@ def read_eng_parsebank(dirname,max_sent=10000):
                 counter+=1
 #            if max_sent!=0 and counter==max_sent:
 #                break
+    print("Eng parsebank:",total_count,file=sys.stderr)
+    print("Vectorized:",count,file=sys.stderr)  
+    
+    
+def build_sparse_matrices(outdir,fname,translation_dictionary):
+    # return sparse, and translated_sparse
+    print("Buildinf sparse from",fname)
+    f=gzip.open(outdir+"/"+fname,"rt",encoding="utf-8")
+    sparse_size=1000000
+    normalizer=np.zeros(sparse_size,dtype=np.float32)
+    row=array.array('i')
+    col=array.array('i')
+    transl_row=array.array('i')
+    transl_col=array.array('i')
+    counter=0
+    for i,sent in enumerate(f):
+        words=set(sent.strip().lower().split())
+        normalizer[i]=np.float32(len(words))
+        for word in words:
+            if word not in translation_dictionary:
+                continue
+            h=int(hashlib.sha224(word.encode("utf-8")).hexdigest(), 16)%sparse_size
+            row.append(i)
+            col.append(h)
+            for translation in translation_dictionary[word]:
+                h=int(hashlib.sha224(translation.encode("utf-8")).hexdigest(), 16)%sparse_size
+                transl_row.append(i)
+                transl_col.append(h)
+        counter+=1
+        if i!=0 and i%10000==0:
+            print(i)
+    normalizer=normalizer[:counter]
+    sparse=coo_matrix((np.ones(len(row),dtype=np.float32),(np.frombuffer(row,dtype=np.int32),np.frombuffer(col,dtype=np.int32))),shape=(counter,sparse_size),dtype=np.float32)
+    translated_sparse=coo_matrix((np.ones(len(transl_row),dtype=np.float32),(np.frombuffer(transl_row,dtype=np.int32),np.frombuffer(transl_col,dtype=np.int32))),shape=(counter,sparse_size),dtype=np.float32)
+    if fname.startswith("fi"):
+        sparse=sparse.tocsr()
+        translated_sparse=translated_sparse.tocsr()
+    elif fname.startswith("en"):
+        sparse=sparse.tocsc()
+        translated_sparse=translated_sparse.tocsc()
+    f.close()
+    with open(outdir+"/"+fname.replace(".txt.gz",".sparse.pickle"), "wb") as f:
+        pickle.dump(sparse,f)
+    with open(outdir+"/"+fname.replace(".txt.gz",".translated_sparse.pickle"), "wb") as f:
+        pickle.dump(translated_sparse,f)
+    with open(outdir+"/"+fname.replace(".txt.gz",".normalizer.pickle"), "wb") as f:
+        pickle.dump(normalizer,f)
+    # saved, return nothing
+  
+  
             
 def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
     """ Iterates over the data_iterator and fills the index matrices with fresh data
@@ -132,14 +192,14 @@ def iter_wrapper(src_dirname,trg_dirname,max_sent=10000):
 
 def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
     # create files
-    outdir="vdata_final"
+    outdir="vdata_bible"    
     file_dict={}
-    for i in range(min_len,max_len+1):
-        file_dict["fi_sent_len{N}".format(N=i)]=gzip.open(outdir+"/fi_len{N}.txt.gz".format(N=i),"wt",encoding="utf-8")
-        file_dict["fi_vec_len{N}".format(N=i)]=open(outdir+"/fi_len{N}.npy".format(N=i),"wb")
+    for i in range(min_len,max_len+1): # C is here 0
+        file_dict["fi_sent_len{N}".format(N=i)]=gzip.open(outdir+"/fi_len{N}_{C}.txt.gz".format(N=i,C=0),"wt",encoding="utf-8")
+        file_dict["fi_vec_len{N}".format(N=i)]=open(outdir+"/fi_len{N}_{C}.npy".format(N=i,C=0),"wb")
         file_dict["fi_count_len{N}".format(N=i)]=0
-        file_dict["en_sent_len{N}".format(N=i)]=gzip.open(outdir+"/en_len{N}.txt.gz".format(N=i),"wt",encoding="utf-8")
-        file_dict["en_vec_len{N}".format(N=i)]=open(outdir+"/en_len{N}.npy".format(N=i),"wb")
+        file_dict["en_sent_len{N}".format(N=i)]=gzip.open(outdir+"/en_len{N}_{C}.txt.gz".format(N=i,C=0),"wt",encoding="utf-8")
+        file_dict["en_vec_len{N}".format(N=i)]=open(outdir+"/en_len{N}_{C}.npy".format(N=i,C=0),"wb")
         file_dict["en_count_len{N}".format(N=i)]=0
     
 
@@ -159,10 +219,19 @@ def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
     # build matrices
     ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
     
+    # read translation dictionaries
+    with open("f2e_dictionary.pickle", "rb") as f:
+        f2e_dictionary=pickle.load(f)
+    with open("e2f_dictionary.pickle", "rb") as f:
+        e2f_dictionary=pickle.load(f)
+        
+#    f2e_dictionary=build_dictionary("lex.f2e","uniq.train.tokens.fi.100K")
+#    e2f_dictionary=build_dictionary("lex.e2f","uniq.train.tokens.en.100K")
+    
 
     # get vectors
     # for loop over minibatches
-    counter=0    
+    counter=0
     for i,(mx,targets,src_data,trg_data) in enumerate(fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(src_fname,trg_fname,max_sent=max_pairs),ngrams)):
         src,trg=trained_model.predict(mx) # shape = (minibatch_size,gru_width)
         # loop over items in minibatch
@@ -179,6 +248,10 @@ def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
                     file_dict["fi_vec_len{N}".format(N=fi_len)]=open(outdir+"/fi_len{N}_{C}.npy".format(N=fi_len,C=file_dict["fi_count_len{N}".format(N=fi_len)]),"wb")
                     file_dict["fi_sent_len{N}".format(N=fi_len)].close()
                     file_dict["fi_sent_len{N}".format(N=fi_len)]=gzip.open(outdir+"/fi_len{N}_{C}.txt.gz".format(N=fi_len,C=file_dict["fi_count_len{N}".format(N=fi_len)]),"wt",encoding="utf-8")
+                    # now create sparse matrices from previous batch...
+                    fname="fi_len{N}_{C}.txt.gz".format(N=fi_len,C=file_dict["fi_count_len{N}".format(N=fi_len)]-1000000)
+                    print(fname,file=sys.stderr,flush=True)
+                    build_sparse_matrices(outdir,fname,f2e_dictionary)
                     
             if trg_data[j]!="#None#":
                 en_len=len(trg_data[j].split())
@@ -190,15 +263,30 @@ def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
                     file_dict["en_vec_len{N}".format(N=en_len)]=open(outdir+"/en_len{N}_{C}.npy".format(N=en_len,C=file_dict["en_count_len{N}".format(N=en_len)]),"wb")
                     file_dict["en_sent_len{N}".format(N=en_len)].close()
                     file_dict["en_sent_len{N}".format(N=en_len)]=gzip.open(outdir+"/en_len{N}_{C}.txt.gz".format(N=en_len,C=file_dict["en_count_len{N}".format(N=en_len)]),"wt",encoding="utf-8")
+                    
+                    # now create sparse matrices from previous batch...
+                    fname="en_len{N}_{C}.txt.gz".format(N=en_len,C=file_dict["en_count_len{N}".format(N=en_len)]-1000000)
+                    print(fname,file=sys.stderr,flush=True)
+                    build_sparse_matrices(outdir,fname,e2f_dictionary)
             
             counter+=1
             if counter%100000==0:
-                print("Vectorized {c} sentence pairs".format(c=counter))
+                print("Vectorized {c} sentence pairs".format(c=counter),file=sys.stderr,flush=True)
+                
 
     for key,value in file_dict.items():
         if "count" in key:
             continue
-        value.close()
+        elif "sent" in key: # create last sparse matrices
+            if key.startswith("fi"):
+                d=f2e_dictionary
+            else:
+                d=e2f_dictionary
+            fname=value.name.split("/",1)[1]
+            value.close()
+            build_sparse_matrices(outdir,fname,d)
+        else:
+            value.close()
 
 
 
@@ -211,7 +299,7 @@ if __name__=="__main__":
     g=parser.add_argument_group("Reguired arguments")
     g.add_argument('-m', '--model', type=str, help='Give model name')
     g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
-    g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, zero for all, default={n}'.format(n=1000))
+    g.add_argument('--max_pairs', type=int, default=1000, help='Give max pairs of sentences to read, zero for all, default={n}'.format(n=1000))
     
     args = parser.parse_args()
 
