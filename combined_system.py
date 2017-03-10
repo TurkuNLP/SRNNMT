@@ -23,8 +23,8 @@ def combined(src_fname,trg_fname,keras_model,keras_vocabulary,max_pairs,verbose=
     for i in range(len(baseline_similarities)):
         combined_similarities=[]
         sorted_keras=[idx for idx,s in sorted([(j,sim) for j,sim in enumerate(all_keras_sims[i])], key=lambda x:x[1],reverse=True)]
-        sorted_baseline=[idx for idx,s in sorted(baseline_similarities[i], key=lambda x:x[1], reverse=True)]
-        for keras_sim,(j,baseline_sim) in zip(all_keras_sims[i],baseline_similarities[i]):
+        sorted_baseline=[idx for idx,s,r in sorted(baseline_similarities[i], key=lambda x:x[1], reverse=True)]
+        for keras_sim,(j,baseline_sim,r) in zip(all_keras_sims[i],baseline_similarities[i]):
             combined_similarities.append((j,(keras_sim+baseline_sim)/2))
         sorted_similarities=sorted(combined_similarities, key=lambda x:x[1],reverse=True)
         if sorted_similarities[0][1]<0.4:
@@ -67,8 +67,9 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    combined("data/all.test.fi.tokenized","data/all.test.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
-#    combined("data/wmttest.fi-en.fi.tokenized","data/wmttest.fi-en.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
+#    combined("data/all.test.fi.tokenized","data/all.test.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
+#    combined("bible_data/bible.en-fi.fi.tok.devel","bible_data/bible.en-fi.en.tok.devel",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
+    combined("data/wmttest.fi-en.fi.tokenized","data/wmttest.fi-en.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
 #    combined("data/downloads/wtower.fi-en.fi","data/downloads/wtower.fi-en.en",args.model,args.vocabulary)
 
     

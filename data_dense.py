@@ -60,7 +60,8 @@ def iter_data(training_source,training_target,max_pairs=None):
     counter=0
     with open(training_source) as src, open(training_target) as trg:
         for src_line, trg_line in zip(src,trg):
-            if 5<=len(src_line.strip().split())<=30 and 5<=len(trg_line.strip().split())<=30: # sentence length must be between 5 and 30 tokens
+            #if 5<=len(src_line.strip().split())<=30 and 5<=len(trg_line.strip().split())<=30: # sentence length must be between 5 and 30 tokens
+            if True:
                 yield src_line, trg_line
                 counter+=1
                 if max_pairs is not None and max_pairs>0 and counter>=max_pairs:
@@ -163,6 +164,9 @@ def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
             yield ms.matrix_dict, ms.targets
             row=0
             ms=Matrices(minibatch_size,max_sent_len,ngrams)
+    else:
+        if row>0:
+            yield ms.matrix_dict, ms.targets
 
 
 if __name__=="__main__":

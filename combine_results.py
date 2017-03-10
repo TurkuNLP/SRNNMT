@@ -1,35 +1,21 @@
 import sys
-
-def block_reader(f):
-    trg_sents=[]
-    src=None
-    for line in f:
-        line=line.strip()
-        if not line:
-            yield src,trg_sents
-            src=None
-            trg_sents=[]
-            continue      
-        s,txt=line.split(" ",1)
-        if s=="source:":
-            src=txt
-        else:
-            trg_sents.append((txt,float(s)))
        
 results={}     
-for (src,targets) in block_reader(sys.stdin):
-    if targets[0][1]<0.4:
+for line in sys.stdin:
+    line=line.strip()
+   # try:
+    sim,src,trg=line.split("\t")
+    if float(sim)<0.4:
         continue
-    
     if src not in results:
-        results[src]=[]
-    for (trg,sim) in targets:
-        if sim<0.4:
-            break
-        results[src].append((trg,sim))
+        results[src]=(sim,trg)
+    elif sim>results[src][0]:
+        results[src]=(sim,trg) # overwrite
+    else:
+        pass
+   # except:
+   #     break
         
         
-        
-for key,values in results.items():
-    for trg,sim in values:
-        print(sim,key,trg,sep="||")
+for key,(sim,trg) in sorted(results.items(),key=lambda x:x[1][0],reverse=True):
+    print(sim,key,trg,sep="\t")

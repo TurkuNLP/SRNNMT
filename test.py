@@ -12,7 +12,8 @@ import data_dense
 
 # load model
 def load_model(mname):
-    with open(mname+".json","r") as f:
+#    with open(mname+".json","r") as f:
+    with open(mname.rsplit(".",1)[0]+".json","r") as f:
         trained_model=model_from_json(f.read())
         trained_model.load_weights(mname+".h5")
         trained_model.layers.pop() # remove cosine and flatten layers
@@ -33,7 +34,7 @@ def iter_wrapper(src_data,trg_data):
 
 def vectorize(voc_name,src_data,trg_data,mname):
 
-    minibatch_size=100 
+    minibatch_size=10 
     ngrams=(4,) # TODO: read this from somewhere
 
     #Read vocabularies
@@ -130,8 +131,9 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    test("data/all.test.new.fi.tokenized","data/all.test.new.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
-#    test("data/wmttest.fi-en.fi.tokenized","data/wmttest.fi-en.en.tokenized",args.model,args.vocabulary,args.max_pairs)
+#    test("data/all.test.new.fi.tokenized","data/all.test.new.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
+#    test("bible_data/bible.en-fi.fi.tok.devel","bible_data/bible.en-fi.en.tok.devel",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
+    test("data/wmttest.fi-en.fi.tokenized","data/wmttest.fi-en.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
     
 
 #for mx,targets in batch_iter: # input is shuffled!!!

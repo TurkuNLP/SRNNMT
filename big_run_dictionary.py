@@ -39,6 +39,8 @@ def rank_dictionary(dirname,fname):
     idx_matrix=np.fromfile("{D}_out/{F}.idx.npy".format(D=dirname,F=fname),np.int32)
     idx_matrix=idx_matrix.reshape(int(len(idx_matrix)/3000),3000)
     
+    print(sim_matrix.shape,idx_matrix.shape,file=sys.stderr)
+    
 #    ranks=[]
 #    na=0
 #    all_scores=[]
@@ -69,12 +71,12 @@ def rank_dictionary(dirname,fname):
         count+=1
         if count%10000==0:
             print(count,file=sys.stderr)
-        if results[0][0]<0.3: # makes no sense to keep these...
-            continue
+#        if results[0][0]<0.4: # makes no sense to keep these...
+#            continue
 
         # print
         print("source:",src_sent)
-        for sim,trg,extra_sim in results[:10]:
+        for sim,trg,extra_sim in results[:1]:
             print(sim,extra_sim,trg,sep="\t")
         print()
         
@@ -105,7 +107,7 @@ if __name__=="__main__":
 
 
 
-    rank_dictionary("vdata_test",args.file)
+    rank_dictionary("vdata_final",args.file)
     
     
 

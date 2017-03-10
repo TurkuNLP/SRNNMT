@@ -57,10 +57,10 @@ def read_fin_parsebank(dirname,max_sent=10000):
                 yield txt
                 uniq.add(txt)
                 counter+=1
-#            if max_sent!=0 and counter==max_sent:
-#                break
+            if max_sent!=0 and counter>=max_sent:
+                break
     print("Fin parsebank:",total_count,file=sys.stderr)
-    print("Vectorized:",count,file=sys.stderr)
+#    print("Vectorized:",count,file=sys.stderr)
 
 def sent_reader(f):
     words=[]
@@ -87,7 +87,7 @@ def read_eng_parsebank(dirname,max_sent=10000):
         print(fname,file=sys.stderr,flush=True)
         for sent in sent_reader(gzip.open(fname,"rt",encoding="utf-8")):
             total_count+=1
-            if min_len<=len(sent)<=max_len:
+            if min_len+1<=len(sent)<=max_len:
                 txt=html.unescape(" ".join(sent)) # cow corpus: &apos;
                 if not good_text(txt):
                     continue
@@ -96,10 +96,10 @@ def read_eng_parsebank(dirname,max_sent=10000):
                 yield txt
                 uniq.add(txt)
                 counter+=1
-#            if max_sent!=0 and counter==max_sent:
-#                break
+            if max_sent!=0 and counter>=max_sent:
+                break
     print("Eng parsebank:",total_count,file=sys.stderr)
-    print("Vectorized:",count,file=sys.stderr)  
+#    print("Vectorized:",count,file=sys.stderr)  
     
     
 def build_sparse_matrices(outdir,fname,translation_dictionary):
@@ -179,6 +179,9 @@ def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
             trg_sents=[]
             row=0
             ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
+    else:
+        if row>0:
+            yield ms.matrix_dict, ms.targets, src_sents, trg_sents
         
 
 def iter_wrapper(src_dirname,trg_dirname,max_sent=10000):
@@ -190,9 +193,9 @@ def iter_wrapper(src_dirname,trg_dirname,max_sent=10000):
             break
         
 
-def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
+def vectorize(voc_name,mname,src_fname,trg_fname,data_partition,max_pairs):
     # create files
-    outdir="vdata_bible"    
+    outdir="vdata_bible/"+data_partition    
     file_dict={}
     for i in range(min_len,max_len+1): # C is here 0
         file_dict["fi_sent_len{N}".format(N=i)]=gzip.open(outdir+"/fi_len{N}_{C}.txt.gz".format(N=i,C=0),"wt",encoding="utf-8")
@@ -220,22 +223,24 @@ def vectorize(voc_name,mname,src_fname,trg_fname,max_pairs):
     ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
     
     # read translation dictionaries
-    with open("f2e_dictionary.pickle", "rb") as f:
-        f2e_dictionary=pickle.load(f)
-    with open("e2f_dictionary.pickle", "rb") as f:
-        e2f_dictionary=pickle.load(f)
+#    with open("f2e_dictionary.pickle", "rb") as f:
+#        f2e_dictionary=pickle.load(f)
+#    with open("e2f_dictionary.pickle", "rb") as f:
+#        e2f_dictionary=pickle.load(f)
         
-#    f2e_dictionary=build_dictionary("lex.f2e","uniq.train.tokens.fi.100K")
-#    e2f_dictionary=build_dictionary("lex.e2f","uniq.train.tokens.en.100K")
+    f2e_dictionary=build_dictionary("bible_data/bible.lex.f2e","bible_data/bible.uniq.train.tokens.fi.100K")
+    e2f_dictionary=build_dictionary("bible_data/bible.lex.e2f","bible_data/bible.uniq.train.tokens.en.100K")
     
 
     # get vectors
     # for loop over minibatches
     counter=0
-    for i,(mx,targets,src_data,trg_data) in enumerate(fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(src_fname,trg_fname,max_sent=max_pairs),ngrams)):
+    for i,(mx,targets,src_data,trg_data) in enumerate(fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(src_fname,trg_fname,max_sent=max_pairs),ngrams)):        
         src,trg=trained_model.predict(mx) # shape = (minibatch_size,gru_width)
         # loop over items in minibatch
         for j,(src_v,trg_v) in enumerate(zip(src,trg)):
+            if j>=len(src_data): # empty padding of the minibatch
+                break
             norm_src=src_v/np.linalg.norm(src_v)
             norm_trg=trg_v/np.linalg.norm(trg_v)
             if src_data[j]!="#None#":
@@ -300,6 +305,7 @@ if __name__=="__main__":
     g.add_argument('-m', '--model', type=str, help='Give model name')
     g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
     g.add_argument('--max_pairs', type=int, default=1000, help='Give max pairs of sentences to read, zero for all, default={n}'.format(n=1000))
+    g.add_argument('--part',type=str,help='Part of the data to read.')
     
     args = parser.parse_args()
 
@@ -308,7 +314,7 @@ if __name__=="__main__":
         sys.exit(1)
 
 
-    vectorize(args.vocabulary,args.model,"/home/jmnybl/git_checkout/SRNNMT/parsebank","/home/jmnybl/git_checkout/SRNNMT/EN-COW",args.max_pairs)
+    vectorize(args.vocabulary,args.model,"/home/jmnybl/git_checkout/SRNNMT/parsebank/"+args.part,"/home/jmnybl/git_checkout/SRNNMT/EN-COW/"+args.part,args.part,args.max_pairs)
 
 #    for s in iter_wrapper("/home/jmnybl/git_checkout/SRNNMT/parsebank","/home/jmnybl/git_checkout/SRNNMT/EN-COW",max_sent=10000000):
 #        pass
