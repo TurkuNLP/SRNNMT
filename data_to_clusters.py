@@ -60,10 +60,12 @@ def to_clusters(txt_fname,cluster_model,files,cluster2file):
         vectors[i,:].astype(np.float32).tofile(files[cluster2file[label].replace(".meta",".npy")])
         metadata=np.array([label,len(sentences[i].split(" "))],dtype=np.float32)
         metadata.astype(np.float32).tofile(files[cluster2file[label]])
+        if i%1000000==0:
+            print("Saved",i,"sentences",file=sys.stderr)
     
 def main(directory,lang,number_of_clusters,number_of_files=100):
 
-    k=load_cluster_model(directory,"fi")
+    k=load_cluster_model(directory,"en")
     print(k.get_params())
 
     # create output files

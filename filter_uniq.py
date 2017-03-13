@@ -77,7 +77,7 @@ def read_eng_parsebank(dirname,max_sent=1000):
         print(fname,file=sys.stderr,flush=True)
         for sent in sent_reader(gzip.open(fname,"rt",encoding="utf-8")):
             total_count+=1
-            if min_len+1<=len(sent)<=max_len:
+            if min_len<=len(sent)<=max_len:
                 txt=html.unescape(" ".join(sent)) # cow corpus: &apos;
                 if not good_text(txt):
                     continue
