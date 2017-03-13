@@ -4,6 +4,7 @@ import math
 import json
 import gzip
 import glob
+import pickle
 
 from sklearn.cluster import MiniBatchKMeans
 
@@ -23,9 +24,12 @@ def sample(directory,lang,limit=0.05):
         print("size",sample.shape,file=sys.stderr)
     return sample
     
-def cluster(vectors,clusters=100):
+def cluster(vectors,directory,lang,clusters=100):
     k=MiniBatchKMeans(batch_size=200,n_clusters=clusters)
-    distances=k.fit_predict(vectors)
+    distances=k.fit(vectors)
+    model_fname="{}/{}.cluster.centers.pkl".format(directory,lang)
+    pickle.dump(k, open(model_fname,"wb"))
+    
 #    d={} # key:label  value:listofitems
 #    for sent,label in zip(sentences,k.labels_):
 #        d.setdefault(label,[]).append(sent)
@@ -58,7 +62,7 @@ def main(directory,lang,limit=0.05,clusters=100):
 #            break
 #    print(vectors.shape,len(sentences))
 
-    cluster(sampled_data,clusters=clusters)
+    cluster(sampled_data,directory,lang,clusters=clusters)
     
 if __name__=="__main__":
 

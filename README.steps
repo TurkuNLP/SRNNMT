@@ -1,0 +1,15 @@
+## Training NN models
+-TODO
+
+## Building dictionaries
+-TODO
+
+## Vectorizing data
+-Read Finnish and English parsebank files, and filter data to keep only unique sentences which passes lenth and character filters, split the senteces into size-wise batches: python3 filter_uniq.py --max_pairs 0
+
+-Read finnish and english text file and turn these into dense vectors: for n in {5..30} ; do echo $n ; THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32,cnmem=0 python vectorize_dense.py -m ep100k_models/ep100k.conv.37 -v ep100k_models/ep100k.conv-vocab.pickle -l $n --max_pairs 0 ; done
+
+## Cluster dense vectors
+-Calculate cluster centers based on a sample of the data (produces dir/lang.cluster.centers.pkl): time python cluster_dense.py --dir vdata_ep100k --lang fi --ratio 0.05 --clusters 1000
+
+-Distribute data to cluster based files: time python data_to_clusters.py --dir vdata_ep100k --lang fi --files 100 --clusters 1000
