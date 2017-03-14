@@ -13,7 +13,7 @@
 -Calculate cluster centers based on a sample of the data (produces dir/lang.cluster.centers.pkl): time python cluster_dense.py --dir vdata_ep100k --lang en --ratio 0.05 --clusters 1000 (~48 min)
 
 -Distribute data to cluster based files:
-time python data_to_clusters.py --dir vdata_ep100k --lang en --files 100 --clusters 1000
+time python data_to_clusters.py --dir vdata_ep100k --lang en --files 100 --clusters 1000 (~443min)
 time python data_to_clusters.py --dir vdata_ep100k --lang fi --files 100 --clusters 1000
 
 ## Run dot product
