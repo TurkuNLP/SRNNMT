@@ -1,76 +1,108 @@
 import numpy as np
 import sys
 import math
-import json
+##import json
 import gzip
-import conllutil3 as cu
-import html
+##import conllutil3 as cu
+##import html
 import time
 import pickle
-from scipy.sparse import csr_matrix,csc_matrix,coo_matrix
-import data_dense
+##from scipy.sparse import csr_matrix,csc_matrix,coo_matrix
+##import data_dense
 import re
-import hashlib
-import array
+##import hashlib
+##import array
 from csr_csc_dot import csr_csc_dot_f
+from sklearn.feature_extraction.text import CountVectorizer
 
 from dictionary_baseline import build_dictionary
 
 
-def build_sparse_matrices(data,translation_dictionary,word2idx_orig,word2idx_translation):
-    # return sparse, and translated_sparse
-    sparse_size=100000 # vocab size
+##def build_sparse_matrices(data,translation_dictionary,word2idx_orig,word2idx_translation):
+##    # return sparse, and translated_sparse
+##    sparse_size=100000 # vocab size
+##    normalizer=np.zeros(len(data),dtype=np.float32)
+##    row=array.array('i')
+##    col=array.array('i')
+##    uniq=set()
+##    transl_row=array.array('i')
+##    transl_col=array.array('i')
+##    uniq_transl=set()
+##    for i,sent in enumerate(data):
+##        words=set(sent.strip().lower().split())
+##        normalizer[i]=np.float32(len(words))
+##        for word in words:
+##            if word not in translation_dictionary:
+##                continue
+##            h=word2idx_orig[word]#int(hashlib.sha224(word.encode("utf-8")).hexdigest(), 16)%sparse_size
+##            row.append(i)
+##            col.append(h)
+##            uniq_transl=set()
+##            for translation in translation_dictionary[word]:
+##                if translation not in word2idx_translation or translation in uniq_transl:
+##                    continue
+##                uniq_transl.add(translation)
+##                h=word2idx_translation[translation]#int(hashlib.sha224(translation.encode("utf-8")).hexdigest(), 16)%sparse_size
+##                transl_row.append(i)
+##                transl_col.append(h)
+##        if i!=0 and i%10000==0:
+##            print(i,file=sys.stderr)
+##    print("Making coo sparse...",file=sys.stderr)        
+##    sparse=coo_matrix((np.ones(len(row),dtype=np.float32),(np.frombuffer(row,dtype=np.int32),np.frombuffer(col,dtype=np.int32))),shape=(len(data),sparse_size),dtype=np.float32)
+##    translated_sparse=coo_matrix((np.ones(len(transl_row),dtype=np.float32),(np.frombuffer(transl_row,dtype=np.int32),np.frombuffer(transl_col,dtype=np.int32))),shape=(len(data),sparse_size),dtype=np.float32)
+##    return sparse, translated_sparse, normalizer
+    
+def tokenize(text):    
+    return text.split(" ")
+    
+def translate(data,dictionary):
+
     normalizer=np.zeros(len(data),dtype=np.float32)
-    row=array.array('i')
-    col=array.array('i')
-    uniq=set()
-    transl_row=array.array('i')
-    transl_col=array.array('i')
-    uniq_transl=set()
-    for i,sent in enumerate(data):
-        words=set(sent.strip().lower().split())
-        normalizer[i]=np.float32(len(words))
-        for word in words:
-            if word not in translation_dictionary:
+    translations=[]
+    for i,s in enumerate(data):
+        s=s.split(" ")
+        normalizer[i]=len(set(s))
+        words=set()
+        for w in s:
+            if w not in dictionary:
                 continue
-            h=word2idx_orig[word]#int(hashlib.sha224(word.encode("utf-8")).hexdigest(), 16)%sparse_size
-            row.append(i)
-            col.append(h)
-            uniq_transl=set()
-            for translation in translation_dictionary[word]:
-                if translation not in word2idx_translation or translation in uniq_transl:
-                    continue
-                uniq_transl.add(translation)
-                h=word2idx_translation[translation]#int(hashlib.sha224(translation.encode("utf-8")).hexdigest(), 16)%sparse_size
-                transl_row.append(i)
-                transl_col.append(h)
-        if i!=0 and i%10000==0:
-            print(i,file=sys.stderr)
-    print("Making coo sparse...",file=sys.stderr)        
-    sparse=coo_matrix((np.ones(len(row),dtype=np.float32),(np.frombuffer(row,dtype=np.int32),np.frombuffer(col,dtype=np.int32))),shape=(len(data),sparse_size),dtype=np.float32)
-    translated_sparse=coo_matrix((np.ones(len(transl_row),dtype=np.float32),(np.frombuffer(transl_row,dtype=np.int32),np.frombuffer(transl_col,dtype=np.int32))),shape=(len(data),sparse_size),dtype=np.float32)
-    return sparse, translated_sparse, normalizer
-
-
-def save_sparse(lang,sparse,translated_sparse,normalizer,):
-
-    with open("{}_sparse.pickle".format(lang), "wb") as f:
-        pickle.dump(sparse,f)
-    with open("{}_translated_sparse.pickle".format(lang), "wb") as f:
-        pickle.dump(translated_sparse,f)
-    with open("{}_normalizer.pickle".format(lang), "wb") as f:
-        pickle.dump(normalizer,f)
-
-def load_sparse(lang):
-
-    with open("{}_sparse.pickle".format(lang), "rb") as f:
-        sparse=pickle.load(f)
-    with open("{}_translated_sparse.pickle".format(lang), "rb") as f:
-        translated_sparse=pickle.load(f)
-    with open("{}_normalizer.pickle".format(lang), "rb") as f:
-        normalizer=pickle.load(f)
-        
+            words|=dictionary[w]
+        translations.append(" ".join(words))
+    return translations,normalizer
+    
+def build_sparse_sklearn(data,translation_dictionary,word2idx,word2idx_translated):
+    # sparse
+    vectorizer=CountVectorizer(lowercase=True,binary=True,vocabulary=word2idx,analyzer="word",tokenizer=tokenize,dtype=np.float32)
+    sparse=vectorizer.fit_transform(data)
+    # translated sparse and normalizer
+    print("sparse ready",file=sys.stderr)
+    translated,normalizer=translate(data,translation_dictionary)
+    print("translation+normalizer ready",file=sys.stderr)
+    vectorizer=CountVectorizer(lowercase=True,binary=True,vocabulary=word2idx_translated,analyzer="word",tokenizer=tokenize,dtype=np.float32)
+    translated_sparse=vectorizer.fit_transform(translated)
+    print("translated sparse ready",file=sys.stderr)
     return sparse,translated_sparse,normalizer
+
+
+##def save_sparse(lang,sparse,translated_sparse,normalizer,):
+
+##    with open("{}_sparse.pickle".format(lang), "wb") as f:
+##        pickle.dump(sparse,f)
+##    with open("{}_translated_sparse.pickle".format(lang), "wb") as f:
+##        pickle.dump(translated_sparse,f)
+##    with open("{}_normalizer.pickle".format(lang), "wb") as f:
+##        pickle.dump(normalizer,f)
+
+##def load_sparse(lang):
+
+##    with open("{}_sparse.pickle".format(lang), "rb") as f:
+##        sparse=pickle.load(f)
+##    with open("{}_translated_sparse.pickle".format(lang), "rb") as f:
+##        translated_sparse=pickle.load(f)
+##    with open("{}_normalizer.pickle".format(lang), "rb") as f:
+##        normalizer=pickle.load(f)
+##        
+##    return sparse,translated_sparse,normalizer
     
 def load_data(lang_fname):
 
@@ -151,36 +183,52 @@ def rank(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
     print("# Building sparse matrices",file=sys.stderr)
 ##    src_sparse,src_translated_sparse,src_normalizer=load_sparse("src")
 ##    trg_sparse,trg_translated_sparse,trg_normalizer=load_sparse("trg")
-    
+
     # translation dictionaries    
     f2e_dictionary=build_dictionary(dictionary+".f2e",dict_vocabulary+".fi")
     e2f_dictionary=build_dictionary(dictionary+".e2f",dict_vocabulary+".en")
     word2idx_fi={word.strip().lower(): i for i,word in enumerate(open(dict_vocabulary+".fi","rt",encoding="utf-8"))}
     word2idx_en={word.strip().lower(): i for i,word in enumerate(open(dict_vocabulary+".en","rt",encoding="utf-8"))}
-    
-    # build source sparse matrices
+
+
+    # sklearn
     start=time.time()
-    src_sparse,src_translated_sparse,src_normalizer=build_sparse_matrices(src_sentences,f2e_dictionary,word2idx_fi,word2idx_en)
-    print("Converting to csr...",file=sys.stderr)
-    src_sparse=src_sparse.tocsr() # csr
-    src_translated_sparse=src_translated_sparse.tocsr()
-    print("Ready...",file=sys.stderr)
-    end=time.time()
-    print("Building src sparse matrices",end-start,file=sys.stderr)
-    
-##    save_sparse("src",src_sparse,src_translated_sparse,src_normalizer)
-    
-    # build target sparse matrices
+    src_sparse,src_translated_sparse,src_normalizer=build_sparse_sklearn(src_sentences,f2e_dictionary,word2idx_fi,word2idx_en)
+    print(src_sparse.shape,src_translated_sparse.shape,src_normalizer.shape,file=sys.stderr)
+    print("src sparse",time.time()-start)
     start=time.time()
-    trg_sparse,trg_translated_sparse,trg_normalizer=build_sparse_matrices(trg_sentences,e2f_dictionary,word2idx_en,word2idx_fi)
-    print("Converting to csc...",file=sys.stderr)
+    trg_sparse,trg_translated_sparse,trg_normalizer=build_sparse_sklearn(trg_sentences,e2f_dictionary,word2idx_en,word2idx_fi)
+    print(trg_sparse.shape,trg_translated_sparse.shape,trg_normalizer.shape,file=sys.stderr)
+    print("trg sparse",time.time()-start)
+    print("Converting trg to csc...",file=sys.stderr)
+    start=time.time()
     trg_sparse=trg_sparse.tocsc() # csc
     trg_translated_sparse=trg_translated_sparse.tocsc()
-    print("Ready...",file=sys.stderr)
-    end=time.time()
-    print("Building trg sparse matrices",end-start,file=sys.stderr)
+    print("Conversion ready",time.time()-start)
     
-##    save_sparse("trg",trg_sparse,trg_translated_sparse,trg_normalizer)
+##    # build source sparse matrices
+##    start=time.time()
+##    src_sparse,src_translated_sparse,src_normalizer=build_sparse_matrices(src_sentences,f2e_dictionary,word2idx_fi,word2idx_en)
+##    print("Converting to csr...",file=sys.stderr)
+##    src_sparse=src_sparse.tocsr() # csr
+##    src_translated_sparse=src_translated_sparse.tocsr()
+##    print("Ready...",file=sys.stderr)
+##    end=time.time()
+##    print("Building src sparse matrices",end-start,file=sys.stderr)
+##    
+####    save_sparse("src",src_sparse,src_translated_sparse,src_normalizer)
+##    
+##    # build target sparse matrices
+##    start=time.time()
+##    trg_sparse,trg_translated_sparse,trg_normalizer=build_sparse_matrices(trg_sentences,e2f_dictionary,word2idx_en,word2idx_fi)
+##    print("Converting to csc...",file=sys.stderr)
+##    trg_sparse=trg_sparse.tocsc() # csc
+##    trg_translated_sparse=trg_translated_sparse.tocsc()
+##    print("Ready...",file=sys.stderr)
+##    end=time.time()
+##    print("Building trg sparse matrices",end-start,file=sys.stderr)
+##    
+####    save_sparse("trg",trg_sparse,trg_translated_sparse,trg_normalizer)
     
    
     ## dot product   
