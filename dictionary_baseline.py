@@ -16,7 +16,7 @@ def build_dictionary(translation_file,uniq_tokens):
         f,e,p=line.strip().lower().split()
         if f not in vocabulary:
             continue
-        if float(p)<0.001 or float(p)==1.0:
+        if float(p)<0.001:# or float(p)==1.0:
             continue
         if f in ttable:
             ttable[f].append((e,float(p)))

@@ -21,5 +21,5 @@ time python data_to_clusters.py --dir vdata_ep100k --lang fi --files 100 --clust
 
 ## Run dot product
 -Calculate sparse matrices, and run dense and sparse dot products inside clusters, slice data according to cluster ids and sentence lengths to keep things fast:
-time python dot.py --fi_fname vdata_ep100k/clusters/fi.clusters430-439 --en_fname vdata_ep100k/clusters/en.clusters430-439 --dictionary europarl100K_exp/ep100k.lex --dict_vocabulary europarl100K_exp/uniq.train.tokens.100K --outfile test_out/test (23 min)
+time python dot.py --fi_fname vdata_ep100k/clusters/fi.clusters430-439 --en_fname vdata_ep100k/clusters/en.clusters430-439 --dictionary europarl100K_exp/ep100k.lex --dict_vocabulary europarl100K_exp/uniq.train.tokens.100K --outfile results_ep100k/clusters430-439.results > clusters430-439.log 2>&1 (23 min)
     

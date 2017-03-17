@@ -1,16 +1,11 @@
 import numpy as np
 import sys
 import math
-##import json
 import gzip
-##import conllutil3 as cu
-##import html
 import time
 import pickle
 from scipy.sparse import csr_matrix,csc_matrix,coo_matrix
-##import data_dense
 import re
-##import hashlib
 import array
 from csr_csc_dot import csr_csc_dot_f
 from sklearn.feature_extraction.text import CountVectorizer
@@ -64,42 +59,16 @@ def build_sparse_sklearn(data,translation_dictionary,word2idx,word2idx_translate
     # sparse
     vectorizer=CountVectorizer(lowercase=True,binary=True,vocabulary=word2idx,analyzer="word",tokenizer=tokenize,dtype=np.float32)
     sparse=vectorizer.fit_transform(data)
-    # translated sparse and normalizer
-##    print("sparse ready",file=sys.stderr)
-##    translated,normalizer=translate(data,translation_dictionary)
-##    print("translation+normalizer ready",file=sys.stderr)
-##    vectorizer=CountVectorizer(lowercase=True,binary=True,vocabulary=word2idx_translated,analyzer="word",tokenizer=tokenize,dtype=np.float32)
-##    translated_sparse=vectorizer.fit_transform(translated)
-##    print("translated sparse ready",file=sys.stderr)
-    return sparse ##,translated_sparse,normalizer
 
+    return sparse
 
-##def save_sparse(lang,sparse,translated_sparse,normalizer,):
-
-##    with open("{}_sparse.pickle".format(lang), "wb") as f:
-##        pickle.dump(sparse,f)
-##    with open("{}_translated_sparse.pickle".format(lang), "wb") as f:
-##        pickle.dump(translated_sparse,f)
-##    with open("{}_normalizer.pickle".format(lang), "wb") as f:
-##        pickle.dump(normalizer,f)
-
-##def load_sparse(lang):
-
-##    with open("{}_sparse.pickle".format(lang), "rb") as f:
-##        sparse=pickle.load(f)
-##    with open("{}_translated_sparse.pickle".format(lang), "rb") as f:
-##        translated_sparse=pickle.load(f)
-##    with open("{}_normalizer.pickle".format(lang), "rb") as f:
-##        normalizer=pickle.load(f)
-##        
-##    return sparse,translated_sparse,normalizer
     
 def load_data(lang_fname):
 
     # load senteces, vectors and metadata
-    sentences=[s.strip() for s in gzip.open(lang_fname+".gz","rt")] #[:10100]
+    sentences=[s.strip() for s in gzip.open(lang_fname+".gz","rt")]
     vectors=np.fromfile(lang_fname+".npy",np.float32)
-    vectors=vectors.reshape(int(len(vectors)/150),150) #[:10100,:]
+    vectors=vectors.reshape(int(len(vectors)/150),150)
     metadata=np.fromfile(lang_fname+".meta",np.float32)
     metadata=metadata.reshape(int(len(metadata)/2),2)
     
@@ -152,14 +121,13 @@ def get_slices(src_m,trg_m):
     aligned_trg,src=align_slices(src,trg)
     return src,aligned_trg
 
-def rank(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
+def main(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
 
     # file to write results
     out_combined=gzip.open(outfname+"-combined.txt.gz","wt",encoding="utf-8")
     out_keras=gzip.open(outfname+"-keras.txt.gz","wt",encoding="utf-8")
     out_baseline=gzip.open(outfname+"-baseline.txt.gz","wt",encoding="utf-8")
     
-
     
     ## read data (returns it already sorted)
     src_sentences,src_vectors,src_metadata=load_data(src_fname)
@@ -176,7 +144,7 @@ def rank(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
     word2idx_fi={word.strip().lower(): i for i,word in enumerate(open(dict_vocabulary+".fi","rt",encoding="utf-8"))}
     word2idx_en={word.strip().lower(): i for i,word in enumerate(open(dict_vocabulary+".en","rt",encoding="utf-8"))}
     # translation matrices
-    f2e_matrix=build_translation_matrix(f2e_dictionary,word2idx_fi,word2idx_en).tocsr() # format?
+    f2e_matrix=build_translation_matrix(f2e_dictionary,word2idx_fi,word2idx_en).tocsr()
     e2f_matrix=build_translation_matrix(e2f_dictionary,word2idx_en,word2idx_fi).tocsr()
     print("f2e translation matrix",f2e_matrix.shape,file=sys.stderr)
     print("e2f translation matrix",e2f_matrix.shape,file=sys.stderr)
@@ -184,51 +152,17 @@ def rank(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
 
     ## build sparse matrices
     print("# Building sparse matrices",file=sys.stderr)
-##    src_sparse,src_translated_sparse,src_normalizer=load_sparse("src")
-##    trg_sparse,trg_translated_sparse,trg_normalizer=load_sparse("trg")
 
-    # sklearn
     start=time.time()
     src_sparse=build_sparse_sklearn(src_sentences,f2e_dictionary,word2idx_fi,word2idx_en)
-##    src_sparse,src_translated_sparse,src_normalizer=build_sparse_sklearn(src_sentences,f2e_dictionary,word2idx_fi,word2idx_en)
     src_normalizer=np.array([len(set(s.split(" "))) for s in src_sentences],dtype=np.float32)
     print(src_sparse.shape,src_normalizer.shape,file=sys.stderr)
     print("src sparse",time.time()-start)
     start=time.time()
     trg_sparse=build_sparse_sklearn(trg_sentences,e2f_dictionary,word2idx_en,word2idx_fi)
-##    trg_sparse,trg_translated_sparse,trg_normalizer=build_sparse_sklearn(trg_sentences,e2f_dictionary,word2idx_en,word2idx_fi)
     trg_normalizer=np.array([len(set(s.split(" "))) for s in trg_sentences],dtype=np.float32)
     print(trg_sparse.shape,trg_normalizer.shape,file=sys.stderr)
     print("trg sparse",time.time()-start)
-    print("Converting trg to csc...",file=sys.stderr)
-    start=time.time()
-    trg_sparse=trg_sparse.tocsr() # csc
-##    trg_translated_sparse=trg_translated_sparse.tocsc()
-    print("Conversion ready",time.time()-start)
-    
-##    # build source sparse matrices
-##    start=time.time()
-##    src_sparse,src_translated_sparse,src_normalizer=build_sparse_matrices(src_sentences,f2e_dictionary,word2idx_fi,word2idx_en)
-##    print("Converting to csr...",file=sys.stderr)
-##    src_sparse=src_sparse.tocsr() # csr
-##    src_translated_sparse=src_translated_sparse.tocsr()
-##    print("Ready...",file=sys.stderr)
-##    end=time.time()
-##    print("Building src sparse matrices",end-start,file=sys.stderr)
-##    
-####    save_sparse("src",src_sparse,src_translated_sparse,src_normalizer)
-##    
-##    # build target sparse matrices
-##    start=time.time()
-##    trg_sparse,trg_translated_sparse,trg_normalizer=build_sparse_matrices(trg_sentences,e2f_dictionary,word2idx_en,word2idx_fi)
-##    print("Converting to csc...",file=sys.stderr)
-##    trg_sparse=trg_sparse.tocsc() # csc
-##    trg_translated_sparse=trg_translated_sparse.tocsc()
-##    print("Ready...",file=sys.stderr)
-##    end=time.time()
-##    print("Building trg sparse matrices",end-start,file=sys.stderr)
-##    
-####    save_sparse("trg",trg_sparse,trg_translated_sparse,trg_normalizer)
     
    
     ## dot product   
@@ -249,63 +183,52 @@ def rank(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
         
         #slice sparse trg now
         stime=time.time()
-        trg_sparse_slice=trg_sparse[trg_start:trg_end+1,:]
-        trg_translated_sparse_slice=(trg_sparse_slice*e2f_matrix).tocsc()
-        trg_sparse_slice=trg_sparse_slice.tocsc() # csc
-        trg_normalizer_slice=trg_normalizer.reshape((1,len(trg_normalizer)))[:,trg_start:trg_end+1]
-        etime=time.time()
-        print("Slicing csc sparse",etime-stime,file=sys.stderr)
+        trg_sparse_slice=trg_sparse[trg_start:trg_end+1,:] # slice original trg
+        trg_translated_sparse_slice=(trg_sparse_slice*e2f_matrix).tocsc() # translate it
+        trg_translated_sparse_slice.data=np.ones(len(trg_translated_sparse_slice.data),dtype=np.float32) # Force translated into binary
+        trg_sparse_slice=trg_sparse_slice.tocsc() # convert original into csc
+        trg_normalizer_slice=trg_normalizer.reshape((1,len(trg_normalizer)))[:,trg_start:trg_end+1] # slice normalizer
+        print("Slicing trg sparse",time.time()-stime,file=sys.stderr)
     
-        for i in range(src_start,src_end+1,max_slice_point):
+        for i in range(src_start,src_end+1,max_slice_point): # iterate src slice 1000 at time
     
             ostart=time.time()
             print("slice:",src_key,"{}-{}".format(i,min(src_end+1,i+max_slice_point)),file=sys.stderr)
-            # dense dot
+            ## dense dot
             start=time.time()
             sim_matrix=np.dot(src_vectors[i:min(src_end+1,i+max_slice_point),:],trg_vectors[trg_start:trg_end+1,:].T)
-            print("Dense shape",sim_matrix.shape)
-            end=time.time()
-            print("dense dot product ready,",end-start,file=sys.stderr)
+            print("dense dot product ready,",time.time()-start,file=sys.stderr)
             print(src_vectors[i:min(src_end+1,i+max_slice_point),:].shape,trg_vectors[trg_start:trg_end+1,:].T.shape)
-            # sparse dot
-        
-            # slice out matrix if i+max_slice_point>src_end+1 
+            
+            ## sparse dot   
+            # slice output matrix if i+max_slice_point>src_end+1 
             if i+max_slice_point>src_end+1:
                 sparse_dot_out=sparse_dot_out[:sim_matrix.shape[0],:]
                 sparse_dot_out2=sparse_dot_out2[:sim_matrix.shape[0],:]
         
-            # fi orig, en transl, norm with fi_len
-            start=time.time() # TODO          
+            # original src, translated trg, normalized with src #unique_tokens
+            start=time.time()       
             csr_csc_dot_f(i,min(src_end+1-i,max_slice_point),src_sparse,trg_translated_sparse_slice,sparse_dot_out)
-            print("first sparse dot ready",time.time()-start,file=sys.stderr)
-            np.divide(sparse_dot_out,src_normalizer.reshape((len(src_normalizer),1))[i:min(src_end+1,i+max_slice_point),:],sparse_dot_out)
-            print("first normalize ready",time.time()-start,file=sys.stderr)
-            # fi transl, en orig, norm with en_len
-            end=time.time()
-            tmp=src_sparse[i:min(src_end+1,i+max_slice_point),:]*f2e_matrix
+            np.divide(sparse_dot_out,src_normalizer.reshape((len(src_normalizer),1))[i:min(src_end+1,i+max_slice_point),:],sparse_dot_out) # normalize
+            # src translated, original trg, normalized with trg #unique_tokens
+            tmp=src_sparse[i:min(src_end+1,i+max_slice_point),:]*f2e_matrix # translate original src slice        
+            tmp.data=np.ones(len(tmp.data),dtype=np.float32) # force to binary
             csr_csc_dot_f(0,tmp.shape[0],tmp,trg_sparse_slice,sparse_dot_out2)
-            print("second sparse dot ready",time.time()-end,file=sys.stderr)
-            np.divide(sparse_dot_out2,trg_normalizer_slice,sparse_dot_out2)
+            np.divide(sparse_dot_out2,trg_normalizer_slice,sparse_dot_out2) # normalize
             print("full sparse dot ready",time.time()-start,file=sys.stderr)
             
             # sum sparse_dot_out and sparse_dot_out2, write results to sparse_dot_out
-            start=time.time()
             np.add(sparse_dot_out,sparse_dot_out2,sparse_dot_out)
             # sum all three, write results to sparse_dot_out2
             np.add(sim_matrix,sparse_dot_out,sparse_dot_out2)
-            end=time.time()
-            print("average ready",end-start,file=sys.stderr)
             
             # now sim_matrix has dense similarities, sparse_dot_out has baseline similarities, and sparse_dot_out2 has combined similarities
         
-            start=time.time()
             argmaxs_keras=np.argmax(sim_matrix,axis=1)
             argmaxs_baseline=np.argmax(sparse_dot_out,axis=1)
             argmaxs_combined=np.argmax(sparse_dot_out2,axis=1)
-            end=time.time()
-            print("argmax ready",end-start,file=sys.stderr)
             
-            # print results
+            ## print results
             for j in range(argmaxs_keras.shape[0]): # all three should have the same shape
                 # keras
                 print(sim_matrix[j,argmaxs_keras[j]],src_sentences[i+j],trg_sentences[trg_start+argmaxs_keras[j]],sep="\t",file=out_keras,flush=True)
@@ -350,7 +273,7 @@ if __name__=="__main__":
 
     assert args.fi_fname.split(".",1)[-1]==args.en_fname.split(".",1)[-1]
 
-    returns=rank(args.fi_fname,args.en_fname,args.outfile,args.dictionary,args.dict_vocabulary)
+    returns=main(args.fi_fname,args.en_fname,args.outfile,args.dictionary,args.dict_vocabulary)
 
 
     
