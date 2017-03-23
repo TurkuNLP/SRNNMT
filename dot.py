@@ -157,12 +157,12 @@ def main(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
     src_sparse=build_sparse_sklearn(src_sentences,f2e_dictionary,word2idx_fi,word2idx_en)
     src_normalizer=np.array([len(set(s.split(" "))) for s in src_sentences],dtype=np.float32)
     print(src_sparse.shape,src_normalizer.shape,file=sys.stderr)
-    print("src sparse",time.time()-start)
+    print("src sparse",time.time()-start,file=sys.stderr)
     start=time.time()
     trg_sparse=build_sparse_sklearn(trg_sentences,e2f_dictionary,word2idx_en,word2idx_fi)
     trg_normalizer=np.array([len(set(s.split(" "))) for s in trg_sentences],dtype=np.float32)
     print(trg_sparse.shape,trg_normalizer.shape,file=sys.stderr)
-    print("trg sparse",time.time()-start)
+    print("trg sparse",time.time()-start,file=sys.stderr)
     
    
     ## dot product   
@@ -179,7 +179,7 @@ def main(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
         #create output matrices
         sparse_dot_out=np.zeros((min(src_end+1-src_start,max_slice_point),trg_end+1-trg_start),dtype=np.float32)
         sparse_dot_out2=np.zeros((min(src_end+1-src_start,max_slice_point),trg_end+1-trg_start),dtype=np.float32)
-        print("# sparse_dot_out",sparse_dot_out.shape)
+        print("# sparse_dot_out",sparse_dot_out.shape,file=sys.stderr)
         
         #slice sparse trg now
         stime=time.time()
@@ -198,7 +198,7 @@ def main(src_fname,trg_fname,outfname,dictionary,dict_vocabulary):
             start=time.time()
             sim_matrix=np.dot(src_vectors[i:min(src_end+1,i+max_slice_point),:],trg_vectors[trg_start:trg_end+1,:].T)
             print("dense dot product ready,",time.time()-start,file=sys.stderr)
-            print(src_vectors[i:min(src_end+1,i+max_slice_point),:].shape,trg_vectors[trg_start:trg_end+1,:].T.shape)
+            print(src_vectors[i:min(src_end+1,i+max_slice_point),:].shape,trg_vectors[trg_start:trg_end+1,:].T.shape,file=sys.stderr)
             
             ## sparse dot   
             # slice output matrix if i+max_slice_point>src_end+1 
