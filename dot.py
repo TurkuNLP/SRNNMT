@@ -273,9 +273,11 @@ if __name__=="__main__":
 
     assert args.fi_fname.split(".",1)[-1]==args.en_fname.split(".",1)[-1]
 
+    total_time=time.time() # measure also total time because on taito 'time python dot.py' writes it to different log file
+
     returns=main(args.fi_fname,args.en_fname,args.outfile,args.dictionary,args.dict_vocabulary)
 
-
+    print("Total time:",time.time()-total_time,file=sys.stderr)
     
 
 #for mx,targets in batch_iter: # input is shuffled!!!
