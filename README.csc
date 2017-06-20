@@ -13,6 +13,8 @@ python3 -m virtualenv $USERAPPL/venv_keras_py3
 source $USERAPPL/venv_keras_py3/bin/activate
 pip3 install keras pycuda sympy h5py #Maybe something else?
 
+pip install keras==1.2.0
+
 # Make a script in $USERAPPL/activate_gpu.sh like so
 module purge
 module load StdEnv
