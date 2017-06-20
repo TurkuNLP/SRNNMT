@@ -12,7 +12,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 
 from dictionary_baseline import build_dictionary
 
-
+# TODO: vector dimensionality is hard-coded to 150 (load_data), and sentence lengths and src-trg length comparisons are hard-coded to 5-30 and 0-5 (align_slices)
 
 def build_translation_matrix(translation_dictionary,word2idx_orig,word2idx_foreign):
     # return sparse matrix which translates orig words into foreign
@@ -97,18 +97,39 @@ def process_metadata(m):
             
     return d
     
-def align_slices(src,trg,limit_length=(1,6),sentence_range=(5,30)):
+def find_indices(trg_dictionary,cluster,length,limit_length,sentence_range):
+
+    min_value=None
+    for i in range(limit_length[0],limit_length[1]+1):
+        if (cluster,length+i) in trg_dictionary:
+            min_value=length+i
+            break
+            
+    max_value=None
+    for i in range(limit_length[1],limit_length[0]-1,-1):
+        if (cluster,length+i) in trg_dictionary:
+            max_value=length+i
+            break
+    return min_value,max_value       
+    
+    
+def align_slices(src,trg,limit_length=(0,5),sentence_range=(5,30)):
     # limit_length:(min,max) --> limit trg sentence lengths compared to src length, first to consider is src+min, and last is src+max
     # sentence_range:(min,max) --> min and max sentence length we have in our data
-    limited_src={} # e.g. no need to keep src_length=30 because we don't have trg_length=31
+    limited_src={} # e.g. no need to keep src_length=30 if we don't have trg_length=30 (depends on limit_length and sentence_range settings)
     aligned_trg={}
-    for key,value in src.items():
+    for key,value in src.items(): # key: (cluster number, sentence length), value: (start index, end index)
         assert key not in aligned_trg
         if key[1]+limit_length[0]>sentence_range[1]:
             print("skipping src value:",key,file=sys.stderr)
             continue
+        min_i,max_i=find_indices(trg,key[0],key[1],limit_length,sentence_range) # trg_dictionary, cluster, src_len, limit_length, sentence_range
+        if not min_i or not max_i:
+            print("Could not find any candidates for",key,file=sys.stderr)
+            continue
         limited_src[key]=value
-        aligned_trg[key]=(trg[(key[0],key[1]+limit_length[0])][0],trg[(key[0],min(key[1]+limit_length[1],sentence_range[1]))][1])
+        #aligned_trg[key]=(trg[(key[0],key[1]+limit_length[0])][0],trg[(key[0],min(key[1]+limit_length[1],sentence_range[1]))][1]) #
+        aligned_trg[key]=(trg[(key[0],min_i)][0],trg[(key[0],max_i)][1])
     return aligned_trg,limited_src
 
         
@@ -117,7 +138,7 @@ def get_slices(src_m,trg_m):
     # (cluster: from,to -- cluster,len: from,to)
     src=process_metadata(src_m)
     trg=process_metadata(trg_m)
-    # now align these two, so that we can query trg slices using src keys, i.e. give me trg slice for src cluster 22 and sentence length 12 --> trg slice starts from (cluster22,length13) and ends to (cluster22,length18)
+    # now align these two, so that we can query trg slices using src keys, i.e. give me trg slice for src cluster 22 and sentence length 12 --> trg slice starts from (cluster22,length12) and ends to (cluster22,length17)
     aligned_trg,src=align_slices(src,trg)
     return src,aligned_trg
 

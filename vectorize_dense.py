@@ -21,6 +21,7 @@ import re
 
 from test import load_model
 
+# TODO: expects 'fi' and 'en' prefixes in the input data_dir, could be changed to 'src' and 'trg'
 
             
 def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
@@ -67,26 +68,26 @@ def iter_wrapper(fi,en,max_sent=10000):
             break
         
 
-def vectorize(voc_name,mname,sent_length,max_pairs):
-    # create files
-    outdir="vdata_ep100k"
+def vectorize(args):
+
+    # read and create files
     
-    fi_inp=gzip.open(outdir+"/fi_len{N}.txt.gz".format(N=sent_length),"rt",encoding="utf-8")
-    en_inp=gzip.open(outdir+"/en_len{N}.txt.gz".format(N=sent_length),"rt",encoding="utf-8")
+    fi_inp=gzip.open(args.data_dir+"/fi_len{N}.txt.gz".format(N=args.length),"rt",encoding="utf-8")
+    en_inp=gzip.open(args.data_dir+"/en_len{N}.txt.gz".format(N=args.length),"rt",encoding="utf-8")
     
-    fi_outp=open(outdir+"/fi_len{N}.npy".format(N=sent_length),"wb")
-    en_outp=open(outdir+"/en_len{N}.npy".format(N=sent_length),"wb")
+    fi_outp=open(args.data_dir+"/fi_len{N}.npy".format(N=args.length),"wb")
+    en_outp=open(args.data_dir+"/en_len{N}.npy".format(N=args.length),"wb")
     
 
     minibatch_size=100 
     ngrams=(4,) # TODO: read this from somewhere
 
     #Read vocabularies
-    vs=data_dense.read_vocabularies(voc_name,"xxx","xxx",False,ngrams) 
+    vs=data_dense.read_vocabularies(args.vocabulary,"xxx","xxx",False,ngrams) 
     vs.trainable=False
     
     # load model
-    trained_model=load_model(mname)
+    trained_model=load_model(args.model)
     output_size=trained_model.get_layer('source_dense').output_shape[1]
     max_sent_len=trained_model.get_layer('source_ngrams_{n}'.format(n=ngrams[0])).output_shape[1]
     print(output_size,max_sent_len,file=sys.stderr)
@@ -98,7 +99,7 @@ def vectorize(voc_name,mname,sent_length,max_pairs):
     # get vectors
     # for loop over minibatches
     counter=0
-    for i,(mx,targets,src_data,trg_data) in enumerate(fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(fi_inp,en_inp,max_sent=max_pairs),ngrams)):        
+    for i,(mx,targets,src_data,trg_data) in enumerate(fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(fi_inp,en_inp,max_sent=args.max_pairs),ngrams)):        
         src,trg=trained_model.predict(mx) # shape = (minibatch_size,gru_width)
         # loop over items in minibatch
         for j,(src_v,trg_v) in enumerate(zip(src,trg)):
@@ -130,20 +131,21 @@ if __name__=="__main__":
     g=parser.add_argument_group("Reguired arguments")
     g.add_argument('-m', '--model', type=str, help='Give model name')
     g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
+    g.add_argument('--data_dir', type=str, help='Directory where text files are and where vectors should be written.')
     g.add_argument('-l', '--length', type=str, help='Sentence length, tells us which files to read')
     g.add_argument('--max_pairs', type=int, default=1000, help='Give max pairs of sentences to read, zero for all, default={n}'.format(n=1000))
     
     
     args = parser.parse_args()
 
-    if args.model==None or args.vocabulary==None or args.length==None:
+    if args.model==None or args.vocabulary==None or args.length==None or args.data_dir==None:
         parser.print_help()
         sys.exit(1)
 
     number=str(args.max_pairs) if args.max_pairs!=0 else "all"
     print("Vectorizing",number,"sentences",file=sys.stderr)
 
-    vectorize(args.vocabulary,args.model,args.length,args.max_pairs)
+    vectorize(args)
 
 #    for s in iter_wrapper("/home/jmnybl/git_checkout/SRNNMT/parsebank","/home/jmnybl/git_checkout/SRNNMT/EN-COW",max_sent=10000000):
 #        pass

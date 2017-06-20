@@ -3,14 +3,11 @@
 # split the senteces into size-wise batches
 
 import sys
-import math
-import json
 import gzip
 import conllutil3 as cu
 import html
 import glob
-import itertools
-import pickle
+import os
 
 import re
 
@@ -27,7 +24,7 @@ def good_text(sent):
     else:
         return False
 
-def read_fin_parsebank(dirname,max_sent=1000):
+def read_conllu(dirname,max_sent=1000):
     total_count=0
     fnames=glob.glob(dirname+"/*.gz")
     fnames.sort()
@@ -49,8 +46,10 @@ def read_fin_parsebank(dirname,max_sent=1000):
                 counter+=1
             if max_sent!=0 and counter>=max_sent:
                 break
-    print("Fin parsebank:",total_count,file=sys.stderr)
-    print("Fin parsebank yielded:",counter,file=sys.stderr)
+        if max_sent!=0 and counter>=max_sent:
+            break
+    print("conllu parsebank:",total_count,file=sys.stderr)
+    print("conllu parsebank yielded:",counter,file=sys.stderr)
 
 def sent_reader(f):
     words=[]
@@ -66,7 +65,7 @@ def sent_reader(f):
         words.append(cols[0])
         
 
-def read_eng_parsebank(dirname,max_sent=1000):
+def read_cow(dirname,max_sent=1000):
     fnames=glob.glob(dirname+"/*.xml.gz")
     fnames.sort()
     print(fnames,file=sys.stderr)
@@ -88,42 +87,43 @@ def read_eng_parsebank(dirname,max_sent=1000):
                 counter+=1
             if max_sent!=0 and counter>=max_sent:
                 break
-    print("Eng parsebank:",total_count,file=sys.stderr)
-    print("Eng parsebank yielded:",counter,file=sys.stderr)  
-        
-
-def iter_wrapper(src_dirname,trg_dirname,max_sent=10000):
-    counter=0
-    for fin_sent,eng_sent in itertools.zip_longest(read_fin_parsebank(src_dirname,max_sent=max_sent),read_eng_parsebank(trg_dirname,max_sent=max_sent),fillvalue="#None#"): # shorter padded with 'None'
-        yield (fin_sent,eng_sent)
-        counter+=1
-        if max_sent!=0 and counter==max_sent:
+        if max_sent!=0 and counter>=max_sent:
             break
+            
+    print("cow parsebank:",total_count,file=sys.stderr)
+    print("cow parsebank yielded:",counter,file=sys.stderr)  
+        
+        
+preprocessors={"conllu":read_conllu,"cow":read_cow}
+def iter_wrapper(args):
+
+    my_preprocessor=preprocessors[args.preprocessor]
+    
+    for sent in my_preprocessor(args.inp,max_sent=args.max_sent):
+        yield sent
+        
         
 
-def filter_data(src_fname,trg_fname,max_pairs):
-    # create files
-    outdir="vdata_ep100k/"  
+def filter_data(args):
+    # create files 
+    
+    if not os.path.exists(args.outdir):
+        os.makedirs(args.outdir)
+    
     file_dict={}
-    for i in range(min_len,max_len+1): # C is here 0
-        file_dict["fi_sent_len{N}".format(N=i)]=gzip.open(outdir+"/fi_len{N}.txt.gz".format(N=i,C=0),"wt",encoding="utf-8")
-        file_dict["en_sent_len{N}".format(N=i)]=gzip.open(outdir+"/en_len{N}.txt.gz".format(N=i,C=0),"wt",encoding="utf-8")
+    for i in range(min_len,max_len+1):
+        file_dict["sent_len{N}".format(N=i)]=gzip.open(args.outdir+"/{P}_len{N}.txt.gz".format(P=args.out_prefix,N=i),"wt",encoding="utf-8")
               
 
     counter=0
-    for i,(fi,en) in enumerate(iter_wrapper(src_fname,trg_fname,max_sent=max_pairs)):       
+    for i,sent in enumerate(iter_wrapper(args)):       
        
-        if fi!="#None#":
-            fi_len=len(fi.split())
-            print(fi,file=file_dict["fi_sent_len{N}".format(N=fi_len)])
-            
-        if en!="#None#":
-            en_len=len(en.split())
-            print(en,file=file_dict["en_sent_len{N}".format(N=en_len)])         
+        length=len(sent.split())
+        print(sent,file=file_dict["sent_len{N}".format(N=length)])        
             
         counter+=1
         if counter%100000==0:
-            print("Processed {c} sentence pairs".format(c=counter),file=sys.stderr,flush=True)
+            print("Processed {c} sentences".format(c=counter),file=sys.stderr,flush=True)
                 
 
     for key,value in file_dict.items():
@@ -137,15 +137,20 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser(description='')
     g=parser.add_argument_group("Reguired arguments")
-    g.add_argument('--max_pairs', type=int, default=1000, help='Give max pairs of sentences to read, zero for all, default={n}'.format(n=1000))
+    
+    g.add_argument('--inp', type=str, help='Input directory')
+    g.add_argument('--preprocessor', type=str, help='Preprocessor to be used, options: conllu or cow')
+    g.add_argument('--outdir', type=str, help='Output directory name (with path)')
+    g.add_argument('--out_prefix', type=str, help='Output file prefix (for example "fi" or "en")')
+    g.add_argument('--max_sent', type=int, default=1000, help='Give max sentences to read, zero for all, default={n}'.format(n=1000))
     
     args = parser.parse_args()
 
-    number=str(args.max_pairs) if args.max_pairs!=0 else "all"
-    print("Reading",number,"sentences",file=sys.stderr)
+    number=str(args.max_sent) if args.max_sent!=0 else "all"
+    print("Reading",number,"sentences from",args.inp,file=sys.stderr)
 
 
-    filter_data("/home/jmnybl/git_checkout/SRNNMT/parsebank","/home/jmnybl/git_checkout/SRNNMT/EN-COW",args.max_pairs)
+    filter_data(args)
 
 #    for s in iter_wrapper("/home/jmnybl/git_checkout/SRNNMT/parsebank","/home/jmnybl/git_checkout/SRNNMT/EN-COW",max_sent=10000000):
 #        pass
