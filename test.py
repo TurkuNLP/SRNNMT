@@ -1,4 +1,4 @@
-from keras.models import Sequential, Graph, Model, model_from_json
+from keras.models import Sequential, Model, model_from_json
 from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten
 from keras.layers.recurrent import GRU
 from keras.callbacks import Callback,ModelCheckpoint
@@ -12,8 +12,8 @@ import data_dense
 
 # load model
 def load_model(mname):
-#    with open(mname+".json","r") as f:
-    with open(mname.rsplit(".",1)[0]+".json","r") as f:
+    with open(mname+".json","r") as f:
+#    with open(mname.rsplit(".",1)[0]+".json","r") as f:
         trained_model=model_from_json(f.read())
         trained_model.load_weights(mname+".h5")
         trained_model.layers.pop() # remove cosine and flatten layers
