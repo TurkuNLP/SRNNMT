@@ -32,7 +32,7 @@ class CustomCallback(Callback):
     def on_epoch_end(self, epoch, logs={}):
         pass
 
-minibatch_size=400
+minibatch_size=200
 max_sent_len=200
 vec_size=150
 gru_width=150
@@ -77,12 +77,16 @@ def train(args):
 
     #...and cosine between the source and target side
     merged_out=merge([src_dense_out,trg_dense_out],mode='cos',dot_axes=1)
-    flatten=Flatten()
-    merged_out_flat=flatten(merged_out)
+#    flatten=Flatten()
+#    merged_out_flat=flatten(merged_out)
+    
+    # classification
+    classification_layer=Dense(1,activation='sigmoid',name='classification_layer')
+    s_out=classification_layer(Flatten()(merged_out))
 
-    model=Model(input=[src_inp,trg_inp], output=merged_out_flat)
+    model=Model(input=[src_inp,trg_inp], output=s_out)
 
-    model.compile(optimizer='adam',loss='mse')
+    model.compile(optimizer='adam',loss='binary_crossentropy')
     print(model.summary())
 
     inf_iter=data_dense.InfiniteDataIterator(src_f_name,trg_f_name)
@@ -102,8 +106,8 @@ def train(args):
     # callback to save weights after each epoch
     save_cb=ModelCheckpoint(filepath=args.model_name+".{epoch:02d}.h5", monitor='val_loss', verbose=1, save_best_only=False, mode='auto')
 
-    samples_per_epoch=math.ceil((2*len(inf_iter.data))/minibatch_size/20)*minibatch_size #2* because we also have the negative examples
-    model.fit_generator(batch_iter,samples_per_epoch,60*2,callbacks=[save_cb],validation_data=dev_batch_iter,nb_val_samples=1062)
+    steps_per_epoch=1000
+    model.fit_generator(batch_iter,steps_per_epoch,60*2,callbacks=[save_cb],validation_data=dev_batch_iter,nb_val_samples=1062)
 
     #counter=1
     #while True:

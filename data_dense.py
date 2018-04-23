@@ -92,7 +92,7 @@ class InfiniteDataIterator:
                 if src_idx==trg_idx: #same -> positive example
                     yield self.data[src_idx],1.0
                 else: #different -> negative example
-                    yield (self.data[src_idx][0],self.data[trg_idx][1]),-1.0
+                    yield (self.data[src_idx][0],self.data[trg_idx][1]),0.0
             counter+=1
             if self.max_iterations is not None and counter==self.max_iterations:
                 break
@@ -139,6 +139,7 @@ def save_vocabularies(vs,f_name):
 def load_vocabularies(f_name):
     with open(f_name,"rb") as f:
         return pickle.load(f)
+        
 
 def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
     """ Iterates over the data_iterator and fills the index matrices with fresh data
