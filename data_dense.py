@@ -14,39 +14,14 @@ import random
 
 import logging
 logging.basicConfig(level=0)
+from keras.preprocessing.sequence import pad_sequences
 
-# This named tuple holds the matrices which make one minibatch
-class Matrices:
-    
-    def __init__(self,minibatch_size,max_sent_len,ngrams):
-        self.source_ngrams={} #{ N -> matrix}
-        self.target_ngrams={} #{ N -> matrix}
-        for N in ngrams:
-            self.source_ngrams[N]=np.zeros((minibatch_size,max_sent_len),np.int)
-            self.target_ngrams[N]=np.zeros((minibatch_size,max_sent_len),np.int)
-        self.src_len=np.zeros((minibatch_size,1),np.int)
-        self.trg_len=np.zeros((minibatch_size,1),np.int)
-        self.targets=np.zeros((minibatch_size,1),np.float32)
-        self.matrix_dict={}
-        for N in ngrams:
-            self.matrix_dict["source_ngrams_{}".format(N)]=self.source_ngrams[N] #we need a string identifier
-            self.matrix_dict["target_ngrams_{}".format(N)]=self.target_ngrams[N] #we need a string identifier
-        self.matrix_dict["src_len"]=self.src_len
-        self.matrix_dict["trg_len"]=self.trg_len
-
-    def wipe(self):
-        assert False #I think this one I don't use anymore
-        for m in self.source_chars, self.target_chars, self.targets:
-            m.fill(0)
 
 class Vocabularies(object):
 
-    def __init__(self,ngrams):
-        self.source_ngrams={}  # {order -> {"<MASK>":0,"<UNK>":1}} # source language ngrams
-        self.target_ngrams={}  # {order -> {"<MASK>":0,"<UNK>":1}} # target language characters
-        for N in ngrams:
-            self.source_ngrams[N]={"<MASK>":0,"<UNK>":1} # source language ngrams
-            self.target_ngrams[N]={"<MASK>":0,"<UNK>":1} # # target language characters
+    def __init__(self):
+        self.source_char={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3}  
+        self.target_char={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3} 
         self.trainable=True    #If false, it will use <UNK>
 
     def get_id(self,label,dict,counter=None):
@@ -56,46 +31,56 @@ class Vocabularies(object):
             return dict.get(label,dict["<UNK>"])
 
 
-def iter_data(training_source,training_target,max_pairs=None):
+def iter_parallel_data(training_source,training_target,max_pairs=None):
     counter=0
     with open(training_source) as src, open(training_target) as trg:
         for src_line, trg_line in zip(src,trg):
-            #if 5<=len(src_line.strip().split())<=30 and 5<=len(trg_line.strip().split())<=30: # sentence length must be between 5 and 30 tokens
-            if True:
-                yield src_line, trg_line
-                counter+=1
-                if max_pairs is not None and max_pairs>0 and counter>=max_pairs:
-                    break
+            src_line,trg_line=src_line.strip(),trg_line.strip()
+            if not src_line or not trg_line: # remove possible empty lines
+                continue
+            yield src_line, trg_line
+            counter+=1
+            if max_pairs is not None and max_pairs>0 and counter>=max_pairs:
+                break
+
+def monolingual_iterator(fname):
+    while True:
+        if fname.endswith(".gz"):
+            import gzip
+            f=gzip.open(fname,"rt",encoding="utf-8")
+        else:
+            f=open(fname,"rt",encoding="utf-8")
+        for line in f:
+            line=line.strip()
+            if not line:
+                continue
+            yield line
+        f.close()
 
 class InfiniteDataIterator:
+    """ Class to handle the data. """
 
-    def __init__(self,training_source,training_target,max_iterations=None,max_pairs=None):
+    def __init__(self,training_source,training_target,monolingual_source,monolingual_target,max_iterations=None,max_pairs=None):
         self.training_source=training_source
         self.training_target=training_target
+        self.monolingual_source=monolingual_iterator(monolingual_source)
+        self.monolingual_target=monolingual_iterator(monolingual_target)
         self.max_iterations=max_iterations
         self.max_pairs=max_pairs
-        self.data=list(iter_data(self.training_source,self.training_target,self.max_pairs)) #must memorize
+        self.parallel_data=list(iter_parallel_data(self.training_source,self.training_target,self.max_pairs)) 
                 
     def __iter__(self):
-        """
-        Returns randomized training pairs as ((source_sent,target_sent),-1/+1)
-        """
-        positive_indices=list(zip(range(len(self.data)),range(len(self.data)))) #[(0,0),(1,1),(2,2)...]  #indices of source,target
+        " return one monolingual source, one monolingual tagret, and one parallel pair in each yield "
         counter=0
         while True:
-            indices=list(range(len(self.data)))
-            random.shuffle(indices) #shuffled indices
-            negative_indices=list(enumerate(indices)) #[(0,326543),(1,96457),...]
-            all_examples=positive_indices+negative_indices
-            random.shuffle(all_examples) 
-            for src_idx,trg_idx in all_examples: #index where I should take the source sentence, index where I should take the target sentence
-                if src_idx==trg_idx: #same -> positive example
-                    yield self.data[src_idx],1.0
-                else: #different -> negative example
-                    yield (self.data[src_idx][0],self.data[trg_idx][1]),0.0
+            for src_sent,trg_sent in self.parallel_data:
+                yield next(self.monolingual_source), next(self.monolingual_target), (src_sent,trg_sent)
             counter+=1
             if self.max_iterations is not None and counter==self.max_iterations:
                 break
+
+
+            
 
 def ngram_iterator(src,N,max_sentence_len):
     if N==1:
@@ -107,23 +92,20 @@ def ngram_iterator(src,N,max_sentence_len):
             yield src[i:i+N]
     
             
-def read_vocabularies(voc_fname,training_source,training_target,force_rebuild,ngrams):
-    #ngrams -> (1,2,3)... iterable of Ns
+def read_vocabularies(voc_fname,training_source,training_target,monolingual_source,monolingual_target,force_rebuild=False):
     counter=0
-#    voc_fname=training_source+"-vocabularies.pickle"
     if force_rebuild or not os.path.exists(voc_fname):
         #make sure no feature has 0 index
         logging.info("Making one pass to gather vocabulary")
-        vs=Vocabularies(ngrams)
-        for (sent_src,sent_target),_ in InfiniteDataIterator(training_source,training_target,max_iterations=1,max_pairs=1000000): #Make a single pass: # (source_sentence, target_sentence)
+        vs=Vocabularies()
+        for _,_,(sent_src,sent_target) in InfiniteDataIterator(training_source,training_target,monolingual_source, monolingual_target,max_iterations=1,max_pairs=100000): #Make a single pass: # (source_sentence, target_sentence)
             counter+=1
             if counter%10000==0:
                 logging.info("Seen {} sentence pairs...".format(counter))
-            for N in ngrams:
-                for ngram in ngram_iterator(sent_src,N,len(sent_src)):
-                    vs.get_id(ngram,vs.source_ngrams[N])
-                for ngram in ngram_iterator(sent_target,N,len(sent_target)):
-                    vs.get_id(ngram,vs.target_ngrams[N])
+            for char in sent_src:
+                vs.get_id(char,vs.source_char)
+            for char in sent_target:
+                vs.get_id(char,vs.target_char)
         logging.info("Saving new vocabularies to "+voc_fname)
         save_vocabularies(vs,voc_fname)
     else:
@@ -141,33 +123,53 @@ def load_vocabularies(f_name):
         return pickle.load(f)
         
 
-def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
-    """ Iterates over the data_iterator and fills the index matrices with fresh data
-        ms = matrices, vs = vocabularies
-    """
+def fill_batch(minibatch_size,max_seq_len,vs,data_iterator):
+    
+    src_sentences=[]
+    trg_sentences=[]
+    src_sentences_mono=[]
+    trg_sentences_mono=[]
+    for mono_src, mono_trg, (sent_src,sent_trg) in data_iterator:
+        # parallel data
+        s_sent=[vs.get_id("<BOS>",vs.source_char)]
+        t_sent=[vs.get_id("<BOS>",vs.target_char)]
+        for char in sent_src:
+            s_sent.append(vs.get_id(char,vs.source_char))
+        s_sent.append(vs.get_id("<EOS>",vs.source_char))
+        for char in sent_trg:
+            t_sent.append(vs.get_id(char,vs.target_char))
+        t_sent.append(vs.get_id("<EOS>",vs.target_char))
+        src_sentences.append(s_sent)
+        trg_sentences.append(t_sent)
 
-
-    ms=Matrices(minibatch_size,max_sent_len,ngrams)
-    batchsize,max_sentence_len=ms.source_ngrams[ngrams[0]].shape #just pick any one of these really
-    row=0
-    for (sent_src,sent_target),target in data_iterator:
-        for N in ngrams:
-            for j,ngram in enumerate(ngram_iterator(sent_src,N,max_sent_len)):
-                ms.source_ngrams[N][row,j]=vs.get_id(ngram,vs.source_ngrams[N])
-            for j,ngram in enumerate(ngram_iterator(sent_target,N,max_sent_len)):
-                ms.target_ngrams[N][row,j]=vs.get_id(ngram,vs.target_ngrams[N])
-        ms.src_len[row]=len(sent_src.strip().split())
-        ms.trg_len[row]=len(sent_target.strip().split())
-        ms.targets[row]=target
-        row+=1
-        if row==batchsize:
-#            print(ms.matrix_dict, ms.targets)
-            yield ms.matrix_dict, ms.targets
-            row=0
-            ms=Matrices(minibatch_size,max_sent_len,ngrams)
-    else:
-        if row>0:
-            yield ms.matrix_dict, ms.targets
+        # monolingual data
+        s_sent=[vs.get_id("<BOS>",vs.source_char)]
+        t_sent=[vs.get_id("<BOS>",vs.target_char)]
+        for char in mono_src:
+            s_sent.append(vs.get_id(char,vs.source_char))
+        s_sent.append(vs.get_id("<EOS>",vs.source_char))
+        for char in mono_trg:
+            t_sent.append(vs.get_id(char,vs.target_char))
+        t_sent.append(vs.get_id("<EOS>",vs.target_char))
+        src_sentences_mono.append(s_sent)
+        trg_sentences_mono.append(t_sent)
+        
+        if len(src_sentences)==minibatch_size:
+            # parallel inputs
+            src_data=pad_sequences(np.array(src_sentences), maxlen=max_seq_len, padding='post', truncating='post')
+            trg_data=pad_sequences(np.array(trg_sentences), maxlen=max_seq_len, padding='post', truncating='post')
+            #  parallel outputs
+            src_out=np.expand_dims(src_data, -1)
+            trg_out=np.expand_dims(trg_data, -1)
+            # mono inputs
+            src_data_mono=pad_sequences(np.array(src_sentences_mono), maxlen=max_seq_len, padding='post', truncating='post')
+            trg_data_mono=pad_sequences(np.array(trg_sentences_mono), maxlen=max_seq_len, padding='post', truncating='post')
+            yield (src_data_mono, np.expand_dims(src_data_mono, -1)), (trg_data_mono, np.expand_dims(trg_data_mono, -1)), (src_data, trg_data, src_out, trg_out) # monolingual src, monolingual trg, parallel
+            src_sentences=[]
+            trg_sentences=[]
+            src_sentences_mono=[]
+            trg_sentences_mono=[]
+        
 
 
 if __name__=="__main__":
