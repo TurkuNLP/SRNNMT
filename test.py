@@ -7,56 +7,71 @@ import numpy as np
 import sys
 import math
 import json
+from keras.preprocessing.sequence import pad_sequences
 
 import data_dense
 
 # load model
 def load_model(mname):
-    with open(mname+".json","r") as f:
-#    with open(mname.rsplit(".",1)[0]+".json","r") as f:
-        trained_model=model_from_json(f.read())
-        trained_model.load_weights(mname+".h5")
-        trained_model.layers.pop() # remove cosine and flatten layers
-        trained_model.layers.pop()
-        trained_model.outputs = [trained_model.get_layer('source_dense').output,trained_model.get_layer('target_dense').output] # define new outputs
-        trained_model.layers[-1].outbound_nodes = [] # not sure if we need these...
-        trained_model.layers[-2].outbound_nodes = []
-        print(trained_model.summary())
-        print(trained_model.outputs)
+    with open(mname+"-source_encoder.json","r") as f:
+        source_model=model_from_json(f.read())
+        source_model.load_weights(mname+"-source_encoder.h5")
+        print(source_model.summary())
+        print(source_model.outputs)
+    with open(mname+"-target_encoder.json","r") as f:
+        target_model=model_from_json(f.read())
+        target_model.load_weights(mname+"-target_encoder.h5")
+        print(target_model.summary())
+        print(target_model.outputs)
         
-    return trained_model
+    return source_model, target_model
 
 
-def iter_wrapper(src_data,trg_data):
+def data_vectorizer(batch, max_seq_len, vs, src_data,trg_data):
+    src_sentences=[]
+    trg_sentences=[]
     for src_sent,trg_sent in zip(src_data,trg_data):
-        yield (src_sent,trg_sent),1.0
+        s,t=[vs.get_id("<BOS>",vs.source_char)],[vs.get_id("<BOS>",vs.target_char)]
+        for char in src_sent:
+            s.append(vs.get_id(char,vs.source_char))
+        s.append(vs.get_id("<EOS>",vs.source_char))
+        for char in trg_sent:
+            t.append(vs.get_id(char,vs.target_char))
+        s.append(vs.get_id("<EOS>",vs.target_char))
+        src_sentences.append(s)
+        trg_sentences.append(t)
+        if len(src_sentences)==batch:
+            src_data=pad_sequences(np.array(src_sentences), maxlen=max_seq_len, padding='post', truncating='post')
+            trg_data=pad_sequences(np.array(trg_sentences), maxlen=max_seq_len, padding='post', truncating='post')
+            yield src_data,trg_data
+            src_sentences=[]
+            trg_sentences=[]
 
 
-def vectorize(voc_name,src_data,trg_data,mname):
+def vectorize(src_data,trg_data,mname):
 
     minibatch_size=10 
-    ngrams=(4,) # TODO: read this from somewhere
 
     #Read vocabularies
-    vs=data_dense.read_vocabularies(voc_name,"xxx","xxx",False,ngrams) 
+    vs=data_dense.read_vocabularies(mname+"-vocab.pickle", "_", "_", "_", "_", False) 
     vs.trainable=False
     
     # load model
-    trained_model=load_model(mname)
-    output_size=trained_model.get_layer('source_dense').output_shape[1]
-    max_sent_len=trained_model.get_layer('source_ngrams_{n}'.format(n=ngrams[0])).output_shape[1]
+    source_model, target_model=load_model(mname)
+    #output_size=source_model.get_layer('source_dense').output_shape[1]
+    #max_sent_len=trained_model.get_layer('source_ngrams_{n}'.format(n=ngrams[0])).output_shape[1]
+    max_seq_len=100 # TODO
     
-    # build matrices
-    ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
     
-    src_vectors=np.zeros((len(src_data),output_size))
-    trg_vectors=np.zeros((len(src_data),output_size))
+    src_vectors=np.zeros((len(src_data),1024))
+    trg_vectors=np.zeros((len(src_data),1024))
 
     # get vectors
     # for loop over minibatches
     counter=0    
-    for i,(mx,targets) in enumerate(data_dense.fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(src_data,trg_data),ngrams)):
-        src,trg=trained_model.predict(mx) # shape = (minibatch_size,gru_width)
+    for i,(src,trg) in enumerate(data_vectorizer(minibatch_size,max_seq_len,vs,src_data,trg_data)):
+        src=source_model.predict(src)
+        trg=source_model.predict(trg)
         # loop over items in minibatch
         for j,(src_v,trg_v) in enumerate(zip(src,trg)):
             src_vectors[counter]=src_v/np.linalg.norm(src_v)
@@ -66,7 +81,6 @@ def vectorize(voc_name,src_data,trg_data,mname):
                 break
         if counter==len(src_data):
             break
-
     return src_vectors,trg_vectors
     
     
@@ -77,11 +91,10 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
 
     # run dot product
     for i in range(len(src_vectors)):
-        sims=trg_vectors.dot(src_vectors[i])
+        sims=src_vectors.dot(trg_vectors[i])
         all_similarities.append(sims)  
         N=10
-#        results=sorted(((sims[idx],idx,trg_data[idx]) for idx in np.argpartition(sims,-N-1)), reverse=True)#[-N-1:]), reverse=True)
-        results=sorted(((sims[idx],idx,trg_data[idx]) for idx,s in enumerate(sims)), reverse=True)#[-N-1:]), reverse=True)
+        results=sorted(((sims[idx],idx,trg_data[idx]) for idx,s in enumerate(sims)), reverse=True)
 #        if results[0][0]<0.6:
 #            continue
         result_idx=[idx for (sim,idx,txt) in results]
@@ -101,17 +114,22 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
     return all_similarities
     
     
-def test(src_fname,trg_fname,mname,voc_name,max_pairs,verbose):
+def test(src_fname,trg_fname,mname,max_pairs,monolingual=False,verbose=False):
 
     # read sentences
     src_data=[]
     trg_data=[]
-    for src_line,trg_line in data_dense.iter_data(src_fname,trg_fname,max_pairs=max_pairs):
+    for i,(src_line,trg_line) in enumerate(zip(open(src_fname),open(trg_fname))):
         src_data.append(src_line.strip())
         trg_data.append(trg_line.strip())
+        if max_pairs!=0 and i>=max_pairs:
+            break
         
-    src_vectors,trg_vectors=vectorize(voc_name,src_data,trg_data,mname)
-    similarities=rank(src_vectors,trg_vectors,src_data,trg_data,verbose=verbose)
+    src_vectors,trg_vectors=vectorize(src_data,trg_data,mname)
+    if monolingual:
+        similarities=rank(trg_vectors,trg_vectors,trg_data,trg_data,verbose=verbose)
+    else:
+        similarities=rank(src_vectors,trg_vectors,src_data,trg_data,verbose=verbose)
 
 if __name__=="__main__":
 
@@ -120,20 +138,24 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser(description='')
     g=parser.add_argument_group("Reguired arguments")
     g.add_argument('-m', '--model', type=str, help='Give model name')
-    #g.add_argument('--cutoff', type=int, default=2, help='Frequency threshold, how many times an ngram must occur to be included? (default %(default)d)')
-    g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
     g.add_argument('--verbose', action='store_true', default=False, help='Give vocabulary file')
     g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default={n}'.format(n=1000))
+    g.add_argument('--monolingual', action='store_true', default=False, help='Run monolingual evaluation (src against src similarities)')
     
     args = parser.parse_args()
 
-    if args.model==None or args.vocabulary==None:
+    if args.model==None:
         parser.print_help()
         sys.exit(1)
 
-#    test("data/all.test.new.fi.tokenized","data/all.test.new.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
-#    test("bible_data/bible.en-fi.fi.tok.devel","bible_data/bible.en-fi.en.tok.devel",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
-    test("data/wmttest.fi-en.fi.tokenized","data/wmttest.fi-en.en.tokenized",args.model,args.vocabulary,args.max_pairs,verbose=args.verbose)
+    src_file="data/devel_data/newstest2015.fi"
+    trg_file="data/devel_data/newstest2015.en"
+
+#    src_file="data/europarl-v7.fi-en.fi"
+#    trg_file="data/europarl-v7.fi-en.en"
+
+
+    test(src_file,trg_file,args.model,args.max_pairs,monolingual=args.monolingual,verbose=args.verbose)
     
 
 #for mx,targets in batch_iter: # input is shuffled!!!
