@@ -114,7 +114,7 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
     return all_similarities
     
     
-def test(src_fname,trg_fname,mname,max_pairs,monolingual=False,verbose=False):
+def test(src_fname,trg_fname,mname,args):
 
     # read sentences
     src_data=[]
@@ -122,14 +122,16 @@ def test(src_fname,trg_fname,mname,max_pairs,monolingual=False,verbose=False):
     for i,(src_line,trg_line) in enumerate(zip(open(src_fname),open(trg_fname))):
         src_data.append(src_line.strip())
         trg_data.append(trg_line.strip())
-        if max_pairs!=0 and i>=max_pairs:
+        if args.max_pairs!=0 and i>=args.max_pairs-1:
             break
         
     src_vectors,trg_vectors=vectorize(src_data,trg_data,mname)
-    if monolingual:
-        similarities=rank(trg_vectors,trg_vectors,trg_data,trg_data,verbose=verbose)
-    else:
-        similarities=rank(src_vectors,trg_vectors,src_data,trg_data,verbose=verbose)
+    if args.monolingual_source:
+        similarities=rank(src_vectors,src_vectors,src_data,src_data,verbose=args.verbose)
+    elif args.monolingual_target:
+        similarities=rank(trg_vectors,trg_vectors,trg_data,trg_data,verbose=args.verbose)
+    else: # normal multilingual evaluation
+        similarities=rank(src_vectors,trg_vectors,src_data,trg_data,verbose=args.verbose)
 
 if __name__=="__main__":
 
@@ -140,7 +142,8 @@ if __name__=="__main__":
     g.add_argument('-m', '--model', type=str, help='Give model name')
     g.add_argument('--verbose', action='store_true', default=False, help='Give vocabulary file')
     g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default={n}'.format(n=1000))
-    g.add_argument('--monolingual', action='store_true', default=False, help='Run monolingual evaluation (src against src similarities)')
+    g.add_argument('--monolingual_source', action='store_true', default=False, help='Run monolingual evaluation (src against src similarities)')
+    g.add_argument('--monolingual_target', action='store_true', default=False, help='Run monolingual evaluation (trg against trg similarities)')
     
     args = parser.parse_args()
 
@@ -155,7 +158,7 @@ if __name__=="__main__":
 #    trg_file="data/europarl-v7.fi-en.en"
 
 
-    test(src_file,trg_file,args.model,args.max_pairs,monolingual=args.monolingual,verbose=args.verbose)
+    test(src_file,trg_file,args.model,args)
     
 
 #for mx,targets in batch_iter: # input is shuffled!!!
