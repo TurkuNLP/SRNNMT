@@ -1,3 +1,6 @@
+import logging
+logging.getLogger('tensorflow').disabled = True # this removes the annoying 'Level 1:tensorflow:Registering' prints
+
 from keras.models import Sequential, Model, model_from_json
 from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten, ActivityRegularization, MaxPooling1D
 from keras.layers import LSTM, Bidirectional, TimeDistributed, RepeatVector
@@ -5,13 +8,12 @@ from keras.layers import LSTM, Bidirectional, TimeDistributed, RepeatVector
 
 from keras.callbacks import Callback,ModelCheckpoint
 from keras.layers.embeddings import Embedding
-import keras.backend as K
-from keras.engine.topology import Layer
 
 import sys
 import math
 import json
 import numpy as np
+import os
 
 
 import data_dense
@@ -26,30 +28,25 @@ set_session(tf.Session(config=config))
 ### ---end of weird stuff
 
 
-class CustomCallback(Callback):
 
-    def __init__(self, dev_data,dev_labels,index2label,model_name):
-        pass
-
-    def on_epoch_end(self, epoch, logs={}):
-        pass
-
-def evaluate_one(inp,model,v_input,v_pred,note):
+def evaluate_one(inp,model,inverse_1, inverse_2,note):
     preds=model.predict_on_batch(inp)[0]
-    print("Input ({n}):".format(n=note),"".join([v_input[int(l)] for l in inp[0] if int(l)!=0]), flush=True)
-    print("Pred ({n}):".format(n=note),"".join([v_pred[l] for l in np.argmax(preds, axis=-1) if l!=0]), flush=True)
+    print("Input ({n}):".format(n=note),"".join(inverse_1([int(l) for l in inp[0] if int(l)!=0])), flush=True)
+    print("Pred ({n}):".format(n=note),"".join(inverse_2([int(l) for l in np.argmax(preds, axis=-1) if l!=0])), flush=True)
 
 
 def evaluate_all(vs, model, data):
 
     # unpack data
     (mono_src_input, mono_src_output), (mono_trg_input, mono_trg_output), (src_input, trg_input, src_output, trg_output) = data
-    inversed_source={v:k for k,v in vs.source_char.items()}
-    inversed_target={v:k for k,v in vs.target_char.items()}
-    evaluate_one(mono_src_input, model.source_to_source_model, inversed_source, inversed_source, "fi autoencode")
-    evaluate_one(mono_trg_input, model.target_to_target_model, inversed_target, inversed_target, "en autoencode")
-    evaluate_one(src_input, model.source_to_target_model, inversed_source, inversed_target, "fi-->en")
-    evaluate_one(trg_input, model.target_to_source_model, inversed_target, inversed_source, "en-->fi")
+#    inversed_source={v:k for k,v in vs.source_vocab.items()}
+#    inversed_target={v:k for k,v in vs.target_vocab.items()}
+    evaluate_one(mono_src_input, model.source_to_source_model, vs.inversed_vectorizer_source, vs.inversed_vectorizer_source, "fi autoencode crawl")
+    evaluate_one(src_input, model.source_to_source_model, vs.inversed_vectorizer_source, vs.inversed_vectorizer_source, "fi autoencode parallel")
+    evaluate_one(mono_trg_input, model.target_to_target_model, vs.inversed_vectorizer_target, vs.inversed_vectorizer_target, "en autoencode crawl")
+    evaluate_one(trg_input, model.target_to_target_model, vs.inversed_vectorizer_target, vs.inversed_vectorizer_target, "en autoencode parallel")
+    evaluate_one(src_input, model.source_to_target_model, vs.inversed_vectorizer_source, vs.inversed_vectorizer_target, "fi-->en")
+    evaluate_one(trg_input, model.target_to_source_model, vs.inversed_vectorizer_target, vs.inversed_vectorizer_source, "en-->fi")
 
         
 
@@ -60,16 +57,20 @@ def train(args):
     #Read vocabularies
     src_f_name=args.src_train
     trg_f_name=args.trg_train
-    vs=data_dense.read_vocabularies(args.model_name+"-vocab.pickle", src_f_name, trg_f_name, args.monolingual_source, args. monolingual_target, force_rebuild=True) 
+#    vs=data_dense.VocabularyChar()
+#    vs=data_dense.VocabularySubWord()
+    vs=data_dense.WhitespaceSeparatedVocab()
+    vs.build(args.model_name+"-vocab.json", src_f_name, trg_f_name, args.monolingual_source, args. monolingual_target, force_rebuild=True) 
     vs.trainable=False
-    print("Source characters:", len(vs.source_char), "Target characters:", len(vs.target_char))
 
     # build model
-    encoder_decoder=EncoderDecoderModel(vs.source_char, vs.target_char, args)
+    encoder_decoder=EncoderDecoderModel(vs.source_vocab_size, vs.target_vocab_size, args)
     encoder_decoder.build(args)
 
+    print("Source vocabulary:", vs.source_vocab_size, "Target vocabulary:", vs.target_vocab_size)
+
     # data generators
-    inf_iter=data_dense.InfiniteDataIterator(src_f_name, trg_f_name, args.monolingual_source, args. monolingual_target)
+    inf_iter=data_dense.infinite_iterator(src_f_name, trg_f_name, args.monolingual_source, args. monolingual_target)
     batch_iter=data_dense.fill_batch(args.minibatch_size, args.max_seq_len, vs, inf_iter)
 
 
@@ -133,8 +134,8 @@ if __name__=="__main__":
     g.add_argument('--monolingual_target', type=str, help='Monolingual data for target language (English)')
 
     g.add_argument('--minibatch_size', type=int, default=64, help='Minibatch size')
-    g.add_argument('--max_seq_len', type=int, default=100, help='Maximum sequence length (characters)')
-    g.add_argument('--embedding_size', type=int, default=150, help='Embedding size')
+    g.add_argument('--max_seq_len', type=int, default=50, help='Maximum sequence length (characters)')
+    g.add_argument('--embedding_size', type=int, default=250, help='Embedding size')
     g.add_argument('--recurrent_size', type=int, default=512, help='Size of the recurrent layers')
   
     

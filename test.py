@@ -1,3 +1,6 @@
+import logging
+logging.getLogger('tensorflow').disabled = True # this removes the annoying 'Level 1:tensorflow:Registering' prints
+
 from keras.models import Sequential, Model, model_from_json
 from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten
 from keras.layers.recurrent import GRU
@@ -7,9 +10,18 @@ import numpy as np
 import sys
 import math
 import json
+import os
 from keras.preprocessing.sequence import pad_sequences
 
 import data_dense
+
+import tensorflow as tf
+### Only needed for me, not to block the whole GPU, you don't need this stuff
+from keras.backend.tensorflow_backend import set_session
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.2
+set_session(tf.Session(config=config))
+### ---end of weird stuff
 
 # load model
 def load_model(mname):
@@ -31,13 +43,7 @@ def data_vectorizer(batch, max_seq_len, vs, src_data,trg_data):
     src_sentences=[]
     trg_sentences=[]
     for src_sent,trg_sent in zip(src_data,trg_data):
-        s,t=[vs.get_id("<BOS>",vs.source_char)],[vs.get_id("<BOS>",vs.target_char)]
-        for char in src_sent:
-            s.append(vs.get_id(char,vs.source_char))
-        s.append(vs.get_id("<EOS>",vs.source_char))
-        for char in trg_sent:
-            t.append(vs.get_id(char,vs.target_char))
-        s.append(vs.get_id("<EOS>",vs.target_char))
+        s,t=vs.sentence_vectorizer(src_sent,trg_sent)
         src_sentences.append(s)
         trg_sentences.append(t)
         if len(src_sentences)==batch:
@@ -53,14 +59,15 @@ def vectorize(src_data,trg_data,mname):
     minibatch_size=10 
 
     #Read vocabularies
-    vs=data_dense.read_vocabularies(mname+"-vocab.pickle", "_", "_", "_", "_", False) 
+    vs=data_dense.WhitespaceSeparatedVocab()
+    vs.load_vocabularies(mname+"-vocab.json") 
     vs.trainable=False
     
     # load model
     source_model, target_model=load_model(mname)
     #output_size=source_model.get_layer('source_dense').output_shape[1]
     #max_sent_len=trained_model.get_layer('source_ngrams_{n}'.format(n=ngrams[0])).output_shape[1]
-    max_seq_len=100 # TODO
+    max_seq_len=50 # TODO
     
     
     src_vectors=np.zeros((len(src_data),1024))
@@ -151,8 +158,8 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    src_file="data/devel_data/newstest2015.fi"
-    trg_file="data/devel_data/newstest2015.en"
+    src_file="data/devel_data/newstest2015.fi.subwords"
+    trg_file="data/devel_data/newstest2015.en.subwords"
 
 #    src_file="data/europarl-v7.fi-en.fi"
 #    trg_file="data/europarl-v7.fi-en.en"

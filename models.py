@@ -2,6 +2,7 @@ from keras.models import Sequential, Model, model_from_json
 from keras.layers import Dense, Dropout, Input, MaxPooling1D
 from keras.layers import Bidirectional, TimeDistributed, RepeatVector
 from keras.layers import CuDNNLSTM as LSTM
+from keras.optimizers import Adam
 
 
 from keras.callbacks import Callback,ModelCheckpoint
@@ -19,9 +20,10 @@ class Encoder(object):
     def build(self, vocab_size, args):
 
         # encoder: inputs, embeddings, bilstm (return_sequences=True), lstm (return_sequences=False)
-        inp=Input(shape=(args.max_seq_len,), name="character_input")
-        emb=Embedding(vocab_size, args.embedding_size, name="char_embeddings")(inp)
-        blstm=Bidirectional(LSTM(args.recurrent_size, return_sequences=True))(emb)
+        inp=Input(shape=(args.max_seq_len,), name="input")
+        emb=Embedding(vocab_size, args.embedding_size, name="embeddings")(inp)
+        drop=Dropout(0.2)(emb)
+        blstm=Bidirectional(LSTM(args.recurrent_size, return_sequences=True))(drop)
         vec=LSTM(2*args.recurrent_size, return_sequences=False)(blstm)
 
         # ...encoder ready
@@ -53,14 +55,14 @@ class Decoder(object):
 class EncoderDecoderModel(object):
     """ Class to represent four different models (source-to-source, source-to-target, target-to-target, target-to-source) where encoders and decoders are shared. """
 
-    def __init__(self, source_vocab, target_vocab, args):
+    def __init__(self, source_vocab_size, target_vocab_size, args):
         # 2 encoders (source-to-repr and target-to-repr)
-        self.source_encoder=Encoder().build(len(source_vocab),args) # source language encoder
-        self.target_encoder=Encoder().build(len(target_vocab),args) # target language encoder
+        self.source_encoder=Encoder().build(source_vocab_size,args) # source language encoder
+        self.target_encoder=Encoder().build(target_vocab_size,args) # target language encoder
 
         # 2 decoders (repr-to-source and repr-to-target)
-        self.to_source_decoder=Decoder().build(len(source_vocab), args)
-        self.to_target_decoder=Decoder().build(len(target_vocab), args)
+        self.to_source_decoder=Decoder().build(source_vocab_size, args)
+        self.to_target_decoder=Decoder().build(target_vocab_size, args)
 
 
     def build(self, args):
@@ -72,8 +74,8 @@ class EncoderDecoderModel(object):
         #  + two decoders (representation-to-source, representation-to-target)
 
         # inputs
-        src_input=Input(shape=(args.max_seq_len,), name="src_character_input")
-        trg_input=Input(shape=(args.max_seq_len,), name="trg_character_input")
+        src_input=Input(shape=(args.max_seq_len,), name="src_input")
+        trg_input=Input(shape=(args.max_seq_len,), name="trg_input")
 
         
 
@@ -81,25 +83,29 @@ class EncoderDecoderModel(object):
         encoded=self.source_encoder(src_input)
         output=self.to_source_decoder(encoded)
         self.source_to_source_model=Model(inputs=[src_input], outputs=[output])
-        self.source_to_source_model.compile(loss="sparse_categorical_crossentropy", optimizer="adam")
+        optim=Adam(lr=0.001,amsgrad=True)
+        self.source_to_source_model.compile(loss="sparse_categorical_crossentropy", optimizer=optim)
         
         # src-to-trg model
         encoded=self.source_encoder(src_input)
         output=self.to_target_decoder(encoded)
         self.source_to_target_model=Model(inputs=[src_input], outputs=[output])
-        self.source_to_target_model.compile(loss="sparse_categorical_crossentropy", optimizer="adam")
+        optim=Adam(lr=0.001,amsgrad=True)
+        self.source_to_target_model.compile(loss="sparse_categorical_crossentropy", optimizer=optim)
 
         # trg-to-trg model
         encoded=self.target_encoder(trg_input)
         output=self.to_target_decoder(encoded)
         self.target_to_target_model=Model(inputs=[trg_input], outputs=[output])
-        self.target_to_target_model.compile(loss="sparse_categorical_crossentropy", optimizer="adam")
+        optim=Adam(lr=0.001,amsgrad=True)
+        self.target_to_target_model.compile(loss="sparse_categorical_crossentropy", optimizer=optim)
 
         # trg-to-src model
         encoded=self.target_encoder(trg_input)
         output=self.to_source_decoder(encoded)
         self.target_to_source_model=Model(inputs=[trg_input], outputs=[output])
-        self.target_to_source_model.compile(loss="sparse_categorical_crossentropy", optimizer="adam")
+        optim=Adam(lr=0.001,amsgrad=True)
+        self.target_to_source_model.compile(loss="sparse_categorical_crossentropy", optimizer=optim)
 
     def save(self, model_prefix, save_only_weights=False):
         

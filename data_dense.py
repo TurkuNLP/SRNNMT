@@ -8,28 +8,16 @@ import itertools
 import collections
 import numpy as np
 import sys
-import pickle
+import json
 import os.path
 import random
 
 import logging
 logging.basicConfig(level=0)
 from keras.preprocessing.sequence import pad_sequences
+import sentencepiece as spm
 
-
-class Vocabularies(object):
-
-    def __init__(self):
-        self.source_char={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3}  
-        self.target_char={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3} 
-        self.trainable=True    #If false, it will use <UNK>
-
-    def get_id(self,label,dict,counter=None):
-        if self.trainable:
-            return dict.setdefault(label,len(dict)) #auto-grows
-        else:
-            return dict.get(label,dict["<UNK>"])
-
+### DATA ITERATORS (return always sentences) ###
 
 def iter_parallel_data(training_source,training_target,max_pairs=None):
     counter=0
@@ -57,71 +45,228 @@ def monolingual_iterator(fname):
             yield line
         f.close()
 
-class InfiniteDataIterator:
-    """ Class to handle the data. """
 
-    def __init__(self,training_source,training_target,monolingual_source,monolingual_target,max_iterations=None,max_pairs=None):
-        self.training_source=training_source
-        self.training_target=training_target
-        self.monolingual_source=monolingual_iterator(monolingual_source)
-        self.monolingual_target=monolingual_iterator(monolingual_target)
-        self.max_iterations=max_iterations
-        self.max_pairs=max_pairs
-        self.parallel_data=list(iter_parallel_data(self.training_source,self.training_target,self.max_pairs)) 
-                
-    def __iter__(self):
+def infinite_iterator(source, target, monolingual_source, monolingual_target, max_iterations=None, max_pairs=None):
         " return one monolingual source, one monolingual tagret, and one parallel pair in each yield "
+        parallel_data=list(iter_parallel_data(source,target,max_pairs))
+        monolingual_source_iter=monolingual_iterator(monolingual_source)
+        monolingual_target_iter=monolingual_iterator(monolingual_target)
         counter=0
         while True:
-            for src_sent,trg_sent in self.parallel_data:
-                yield next(self.monolingual_source), next(self.monolingual_target), (src_sent,trg_sent)
+            for src_sent,trg_sent in parallel_data:
+                yield next(monolingual_source_iter), next(monolingual_target_iter), (src_sent,trg_sent)
             counter+=1
-            if self.max_iterations is not None and counter==self.max_iterations:
+            if max_iterations is not None and counter==max_iterations:
                 break
 
 
-            
+### VOCABULARIES ###
 
-def ngram_iterator(src,N,max_sentence_len):
-    if N==1:
-        yield from src[:max_sentence_len]
-    else:
-        for i in range(len(src)-N+1):
-            if i>=max_sentence_len:
-                break
-            yield src[i:i+N]
-    
-            
-def read_vocabularies(voc_fname,training_source,training_target,monolingual_source,monolingual_target,force_rebuild=False):
-    counter=0
-    if force_rebuild or not os.path.exists(voc_fname):
-        #make sure no feature has 0 index
-        logging.info("Making one pass to gather vocabulary")
-        vs=Vocabularies()
-        for _,_,(sent_src,sent_target) in InfiniteDataIterator(training_source,training_target,monolingual_source, monolingual_target,max_iterations=1,max_pairs=100000): #Make a single pass: # (source_sentence, target_sentence)
-            counter+=1
-            if counter%10000==0:
-                logging.info("Seen {} sentence pairs...".format(counter))
-            for char in sent_src:
-                vs.get_id(char,vs.source_char)
-            for char in sent_target:
-                vs.get_id(char,vs.target_char)
-        logging.info("Saving new vocabularies to "+voc_fname)
-        save_vocabularies(vs,voc_fname)
-    else:
-        logging.info("Loading vocabularies from "+voc_fname)
-        vs=load_vocabularies(voc_fname)
-    return vs
+class VocabularyChar(object):
+
+    def __init__(self):
+        # initialize, must run build after this
+        self.source_vocab={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3}  
+        self.target_vocab={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3} 
+        self.trainable=True    #If false, it will use <UNK>
+
+    def get_id(self,label,dict,counter=None):
+        if self.trainable:
+            return dict.setdefault(label,len(dict)) #auto-grows
+        else:
+            return dict.get(label,dict["<UNK>"])
 
 
-def save_vocabularies(vs,f_name):
-    with open(f_name,"wb") as f:
-        pickle.dump(vs,f,pickle.HIGHEST_PROTOCOL)
+    def save_vocabularies(self, f_name):
+        with open(f_name,"wt") as f:
+            json.dump((self.source_vocab, self.target_vocab),f)
 
-def load_vocabularies(f_name):
-    with open(f_name,"rb") as f:
-        return pickle.load(f)
-        
+    def load_vocabularies(self, f_name):
+        with open(f_name,"rt") as f:
+            self.source_vocab, self.target_vocab = json.load(f)
+
+
+    def build(self, voc_fname, source, target, monolingual_source, monolingual_target, force_rebuild=False):
+        counter=0
+        if force_rebuild or not os.path.exists(voc_fname):
+            logging.info("Making one pass to gather vocabulary")
+            for _,_,(sent_src,sent_target) in infinite_iterator(source, target, monolingual_source, monolingual_target, max_iterations=1, max_pairs=100000):
+                counter+=1
+                if counter%10000==0:
+                    logging.info("Seen {} sentence pairs...".format(counter))
+                for char in sent_src:
+                    self.get_id(char,self.source_vocab)
+                for char in sent_target:
+                    self.get_id(char,self.target_vocab)
+            logging.info("Saving new vocabularies to "+voc_fname)
+            self.save_vocabularies(voc_fname)
+            self.source_vocab_size=len(self.source_vocab)
+            self.target_vocab_size=len(self.target_vocab)
+        else: # Load existing
+            logging.info("Loading vocabularies from "+voc_fname)
+            self.source_vocab,self.target_vocab=self.load_vocabularies(voc_fname)
+            self.source_vocab_size=len(self.source_vocab)
+            self.target_vocab_size=len(self.target_vocab)
+
+
+    def sentence_vectorizer(self, source, target):
+        """ character segmenter """
+        s_sent=[self.get_id("<BOS>",self.source_vocab)]
+        t_sent=[self.get_id("<BOS>",self.target_vocab)]
+        for char in source:
+            s_sent.append(self.get_id(char,self.source_vocab))
+        for char in target:
+            t_sent.append(self.get_id(char,self.target_vocab))
+        s_sent.append(self.get_id("<EOS>",self.source_vocab))
+        t_sent.append(self.get_id("<EOS>",self.target_vocab))
+        return s_sent, t_sent
+
+
+    def inversed_vectorizer_source(self, source):
+        if not self.inversed_source:
+            self.inversed_source={v:k for k,v in self.source_vocab.items()}
+        return [self.inversed_source[i] for i in source]
+
+    def inversed_vectorizer_target(self, target):
+        if not self.inversed_target:
+            self.inversed_target={v:k for k,v in self.target_vocab.items()}
+        return [self.inversed_target[i] for i in target]
+
+
+
+class WhitespaceSeparatedVocab(object):
+
+    def __init__(self):
+        # initialize, must run build after this
+        self.source_vocab={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3}  
+        self.target_vocab={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3} 
+        self.trainable=True    #If false, it will use <UNK>
+        self.inversed_source=None
+        self.inversed_target=None
+
+    def get_id(self,label,dict,counter=None):
+        if self.trainable:
+            return dict.setdefault(label,len(dict)) #auto-grows
+        else:
+            return dict.get(label,dict["<UNK>"])
+
+
+    def save_vocabularies(self, f_name):
+        with open(f_name,"wt") as f:
+            json.dump((self.source_vocab, self.target_vocab),f)
+
+    def load_vocabularies(self, f_name):
+        with open(f_name,"rt") as f:
+            self.source_vocab, self.target_vocab = json.load(f)
+
+
+    def build(self, voc_fname, source, target, monolingual_source, monolingual_target, force_rebuild=False):
+        counter=0
+        if force_rebuild or not os.path.exists(voc_fname):
+            logging.info("Making one pass to gather vocabulary")
+            for _,_,(sent_src,sent_target) in infinite_iterator(source, target, monolingual_source, monolingual_target, max_iterations=1, max_pairs=100000):
+                counter+=1
+                if counter%10000==0:
+                    logging.info("Seen {} sentence pairs...".format(counter))
+                for item in sent_src.split(" "):
+                    self.get_id(item,self.source_vocab)
+                for item in sent_target.split(" "):
+                    self.get_id(item,self.target_vocab)
+            logging.info("Saving new vocabularies to "+voc_fname)
+            self.save_vocabularies(voc_fname)
+            self.source_vocab_size=len(self.source_vocab)
+            self.target_vocab_size=len(self.target_vocab)
+        else: # Load existing
+            logging.info("Loading vocabularies from "+voc_fname)
+            self.source_vocab,self.target_vocab=self.load_vocabularies(voc_fname)
+            self.source_vocab_size=len(self.source_vocab)
+            self.target_vocab_size=len(self.target_vocab)
+
+
+    def sentence_vectorizer(self, source, target):
+        """ character segmenter """
+        s_sent=[self.get_id("<BOS>",self.source_vocab)]
+        t_sent=[self.get_id("<BOS>",self.target_vocab)]
+        for item in source.split(" "):
+            s_sent.append(self.get_id(item,self.source_vocab))
+        for item in target.split(" "):
+            t_sent.append(self.get_id(item,self.target_vocab))
+        s_sent.append(self.get_id("<EOS>",self.source_vocab))
+        t_sent.append(self.get_id("<EOS>",self.target_vocab))
+        return s_sent, t_sent
+
+
+    def inversed_vectorizer_source(self, source):
+        if not self.inversed_source:
+            self.inversed_source={v:k for k,v in self.source_vocab.items()}
+        return [self.inversed_source[i] for i in source]
+
+    def inversed_vectorizer_target(self, target):
+        if not self.inversed_target:
+            self.inversed_target={v:k for k,v in self.target_vocab.items()}
+        return [self.inversed_target[i] for i in target]
+
+
+
+class VocabularySubWord(object):
+
+    def __init__(self):
+        # initialize, must run build after this
+        self.source_vocab={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3}  
+        self.target_vocab={"<MASK>":0,"<UNK>":1,"<BOS>":2,"<EOS>":3} 
+        self.trainable=True    #If false, it will use <UNK>
+
+    def get_id(self,label,dict,counter=None):
+        if self.trainable:
+            return dict.setdefault(label,len(dict)) #auto-grows
+        else:
+            return dict.get(label,dict["<UNK>"])
+
+
+    def save_vocabularies(self, f_name):
+        with open(f_name,"wt") as f:
+            json.dump((self.source_vocab, self.target_vocab),f)
+
+    def load_vocabularies(self, f_name):
+        with open(f_name,"rt") as f:
+            self.source_vocab, self.target_vocab = json.load(f)
+
+    def train_subwords(self, fname, model_name):
+        spm.SentencePieceTrainer.Train("--input={f} --model_prefix={m} --vocab_size=20000".format(f=fname, m=model_name))
+
+    def load_subwords(self, model_name):
+        self.subword_model_source = spm.SentencePieceProcessor()
+        self.subword_model_source.Load(model_name+"-src.model")
+        self.source_vocab_size=self.subword_model_source.GetPieceSize()
+        self.subword_model_target = spm.SentencePieceProcessor()
+        self.subword_model_target.Load(model_name+"-trg.model")
+        self.target_vocab_size=self.subword_model_target.GetPieceSize()
+
+    def build(self, voc_fname, source, target, monolingual_source, monolingual_target, force_rebuild=False):
+        counter=0
+        if force_rebuild or not os.path.exists(voc_fname+"-src.model"):
+            logging.info("Build subword model")
+            self.train_subwords("data/subwords/fi.input",voc_fname+"-src")
+            self.train_subwords("data/subwords/en.input",voc_fname+"-trg")
+            self.load_subwords(voc_fname)
+        else: # Load existing
+            logging.info("Loading subword models from "+voc_fname)
+            self.load_subwords(voc_fname)
+
+
+    def sentence_vectorizer(self, source, target):
+        """ character segmenter """
+        source="<BOS>"+source+"<EOS>"
+        target="<BOS>"+target+"<EOS>"
+        s=self.subword_model_source.EncodeAsIds(source)
+        t=self.subword_model_source.EncodeAsIds(target)
+        return s, t
+
+    def inversed_vectorizer_source(self, data):
+        return self.subword_model_source.DecodeIds(data)
+
+    def inversed_vectorizer_target(self, data):
+        return self.subword_model_target.DecodeIds(data)
 
 def fill_batch(minibatch_size,max_seq_len,vs,data_iterator):
     
@@ -131,28 +276,13 @@ def fill_batch(minibatch_size,max_seq_len,vs,data_iterator):
     trg_sentences_mono=[]
     for mono_src, mono_trg, (sent_src,sent_trg) in data_iterator:
         # parallel data
-        s_sent=[vs.get_id("<BOS>",vs.source_char)]
-        t_sent=[vs.get_id("<BOS>",vs.target_char)]
-        for char in sent_src:
-            s_sent.append(vs.get_id(char,vs.source_char))
-        s_sent.append(vs.get_id("<EOS>",vs.source_char))
-        for char in sent_trg:
-            t_sent.append(vs.get_id(char,vs.target_char))
-        t_sent.append(vs.get_id("<EOS>",vs.target_char))
-        src_sentences.append(s_sent)
-        trg_sentences.append(t_sent)
-
+        s,t=vs.sentence_vectorizer(sent_src,sent_trg)
+        src_sentences.append(s)
+        trg_sentences.append(t)
         # monolingual data
-        s_sent=[vs.get_id("<BOS>",vs.source_char)]
-        t_sent=[vs.get_id("<BOS>",vs.target_char)]
-        for char in mono_src:
-            s_sent.append(vs.get_id(char,vs.source_char))
-        s_sent.append(vs.get_id("<EOS>",vs.source_char))
-        for char in mono_trg:
-            t_sent.append(vs.get_id(char,vs.target_char))
-        t_sent.append(vs.get_id("<EOS>",vs.target_char))
-        src_sentences_mono.append(s_sent)
-        trg_sentences_mono.append(t_sent)
+        s,t=vs.sentence_vectorizer(mono_src,mono_trg)
+        src_sentences_mono.append(s)
+        trg_sentences_mono.append(t)
         
         if len(src_sentences)==minibatch_size:
             # parallel inputs
