@@ -94,17 +94,22 @@ def train(args):
             encoder_decoder.save(args.model_name)
 
         (mono_src_input, mono_src_output), (mono_trg_input, mono_trg_output), (src_input, trg_input, src_output, trg_output) = next(batch_iter)
+
+        source_mask=np.where(src_input[:,:]>0,1,0)
+        target_mask=np.where(trg_input[:,:]>0,1,0)
+        source_mask_mono=np.where(mono_src_input[:,:]>0,1,0)
+        target_mask_mono=np.where(mono_trg_input[:,:]>0,1,0)
         loss=[]
         # monolingual source (we can run two batches...)
-        loss.append(encoder_decoder.source_to_source_model.train_on_batch(mono_src_input, mono_src_output))
-        loss.append(encoder_decoder.source_to_source_model.train_on_batch(src_input, src_output))
+        loss.append(encoder_decoder.source_to_source_model.train_on_batch(mono_src_input, mono_src_output, sample_weight=source_mask_mono))
+        loss.append(encoder_decoder.source_to_source_model.train_on_batch(src_input, src_output, sample_weight=source_mask))
         # monolingual target
-        loss.append(encoder_decoder.target_to_target_model.train_on_batch(mono_trg_input, mono_trg_output))
-        loss.append(encoder_decoder.target_to_target_model.train_on_batch(trg_input, trg_output))
+        loss.append(encoder_decoder.target_to_target_model.train_on_batch(mono_trg_input, mono_trg_output, sample_weight=target_mask_mono))
+        loss.append(encoder_decoder.target_to_target_model.train_on_batch(trg_input, trg_output, sample_weight=target_mask))
 
         # parallel (both ways)
-        loss.append(encoder_decoder.source_to_target_model.train_on_batch(src_input, trg_output))
-        loss.append(encoder_decoder.target_to_source_model.train_on_batch(trg_input, src_output))
+        loss.append(encoder_decoder.source_to_target_model.train_on_batch(src_input, trg_output, sample_weight=target_mask))
+        loss.append(encoder_decoder.target_to_source_model.train_on_batch(trg_input, src_output, sample_weight=source_mask))
         if counter%10==0:
             print("batch:", counter, "loss:", sum(loss),loss, flush=True)
         counter+=1
