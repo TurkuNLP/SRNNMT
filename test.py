@@ -79,8 +79,12 @@ def vectorize(src_data,trg_data,mname):
     for i,(src,trg) in enumerate(data_vectorizer(minibatch_size,max_seq_len,vs,src_data,trg_data)):
         src=source_model.predict(src)
         trg=source_model.predict(trg)
+        
         # loop over items in minibatch
         for j,(src_v,trg_v) in enumerate(zip(src,trg)):
+#            print("Orig:",src_v)
+#            print("Norm:",np.linalg.norm(src_v))
+#            print("Normalized:",src_v/np.linalg.norm(src_v))
             src_vectors[counter]=src_v/np.linalg.norm(src_v)
             trg_vectors[counter]=trg_v/np.linalg.norm(trg_v)
             counter+=1
@@ -89,7 +93,10 @@ def vectorize(src_data,trg_data,mname):
         if counter==len(src_data):
             break
     return src_vectors,trg_vectors
-    
+
+def print_text(txt):
+    """ remove subword markings """
+    return txt.replace(" ","").replace("▁"," ")
     
 def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
 
@@ -99,6 +106,8 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
     # run dot product
     for i in range(len(src_vectors)):
         sims=src_vectors.dot(trg_vectors[i])
+        print(src_vectors.shape,trg_vectors[i].shape,sims.shape)
+        print("Min:", min(sims))
         all_similarities.append(sims)  
         N=10
         results=sorted(((sims[idx],idx,trg_data[idx]) for idx,s in enumerate(sims)), reverse=True)
@@ -107,11 +116,11 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
         result_idx=[idx for (sim,idx,txt) in results]
         ranks.append(result_idx.index(i)+1)
         if verbose:
-            print("source:",i,src_data[i],np.dot(src_vectors[i],trg_vectors[i]))
-            print("reference:",trg_data[i])
+            print("source:",i,print_text(src_data[i]),np.dot(src_vectors[i],trg_vectors[i]))
+            print("reference:",print_text(trg_data[i]))
             print("rank:",result_idx.index(i)+1)
             for s,idx,txt in results[:10]:
-                print(idx,s,txt)
+                print(idx,s,print_text(txt))
             print("****")
 
     print("Keras:")

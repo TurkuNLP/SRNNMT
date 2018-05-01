@@ -1,5 +1,5 @@
 from keras.models import Sequential, Model, model_from_json
-from keras.layers import Dense, Dropout, Input, MaxPooling1D
+from keras.layers import Dense, Dropout, Input, GlobalMaxPooling1D
 from keras.layers import Bidirectional, TimeDistributed, RepeatVector
 from keras.layers import CuDNNLSTM as LSTM
 from keras.optimizers import Adam
@@ -24,7 +24,9 @@ class Encoder(object):
         emb=Embedding(vocab_size, args.embedding_size, name="embeddings")(inp)
         drop=Dropout(0.2)(emb)
         blstm=Bidirectional(LSTM(args.recurrent_size, return_sequences=True))(drop)
-        vec=LSTM(2*args.recurrent_size, return_sequences=False)(blstm)
+        
+        vec=GlobalMaxPooling1D()(blstm)
+        #vec=LSTM(2*args.recurrent_size, return_sequences=False)(blstm)
 
         # ...encoder ready
         encoder=Model(inputs=[inp], outputs=[vec])
