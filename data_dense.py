@@ -90,7 +90,7 @@ class VocabularyChar(object):
         counter=0
         if force_rebuild or not os.path.exists(voc_fname):
             logging.info("Making one pass to gather vocabulary")
-            for _,_,(sent_src,sent_target) in infinite_iterator(source, target, monolingual_source, monolingual_target, max_iterations=1, max_pairs=100000):
+            for _,_,(sent_src,sent_target) in infinite_iterator(source, target, monolingual_source, monolingual_target, max_iterations=1, max_pairs=1000000):
                 counter+=1
                 if counter%10000==0:
                     logging.info("Seen {} sentence pairs...".format(counter))
@@ -164,7 +164,7 @@ class WhitespaceSeparatedVocab(object):
         counter=0
         if force_rebuild or not os.path.exists(voc_fname):
             logging.info("Making one pass to gather vocabulary")
-            for _,_,(sent_src,sent_target) in infinite_iterator(source, target, monolingual_source, monolingual_target, max_iterations=1, max_pairs=100000):
+            for _,_,(sent_src,sent_target) in infinite_iterator(source, target, monolingual_source, monolingual_target, max_iterations=1, max_pairs=1000000):
                 counter+=1
                 if counter%10000==0:
                     logging.info("Seen {} sentence pairs...".format(counter))

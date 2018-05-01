@@ -86,32 +86,49 @@ def train(args):
     
 
     counter=1
+    loss={"extra_source_autoencode":[], "extra_target_autoencode":[], "parallel_source_autoencode":[], "parallel_target_autoencode":[], "parallel_source-->target":[], "parallel_target-->source":[]}
     while True:
 
-        if counter%100==0:
-
+        if counter%500==0:
+            loss={"extra_source_autoencode":[], "extra_target_autoencode":[], "parallel_source_autoencode":[], "parallel_target_autoencode":[], "parallel_source-->target":[], "parallel_target-->source":[]}
             evaluate_all(vs, encoder_decoder, next(batch_iter))
             encoder_decoder.save(args.model_name)
 
         (mono_src_input, mono_src_output), (mono_trg_input, mono_trg_output), (src_input, trg_input, src_output, trg_output) = next(batch_iter)
 
-        source_mask=np.where(src_input[:,:]>0,1,0)
-        target_mask=np.where(trg_input[:,:]>0,1,0)
-        source_mask_mono=np.where(mono_src_input[:,:]>0,1,0)
-        target_mask_mono=np.where(mono_trg_input[:,:]>0,1,0)
-        loss=[]
-        # monolingual source (we can run two batches...)
-        loss.append(encoder_decoder.source_to_source_model.train_on_batch(mono_src_input, mono_src_output, sample_weight=source_mask_mono))
-        loss.append(encoder_decoder.source_to_source_model.train_on_batch(src_input, src_output, sample_weight=source_mask))
-        # monolingual target
-        loss.append(encoder_decoder.target_to_target_model.train_on_batch(mono_trg_input, mono_trg_output, sample_weight=target_mask_mono))
-        loss.append(encoder_decoder.target_to_target_model.train_on_batch(trg_input, trg_output, sample_weight=target_mask))
+        # calculate masks if needed
+        if args.mask_output:
+            source_mask=np.where(src_input[:,:]>0,1,0.1)
+            target_mask=np.where(trg_input[:,:]>0,1,0.1)
+            source_mask_mono=np.where(mono_src_input[:,:]>0,1,0.1)
+            target_mask_mono=np.where(mono_trg_input[:,:]>0,1,0.1)
+        else:
+            source_mask=None
+            target_mask=None
+            source_mask_mono=None
+            target_mask_mono=None
+ 
+        # show example generation
+        if counter%100==0:
+            # train on extra monolingual data
+            loss["extra_source_autoencode"].append(encoder_decoder.source_to_source_model.train_on_batch(mono_src_input, mono_src_output, sample_weight=source_mask_mono))
+            loss["extra_target_autoencode"].append(encoder_decoder.target_to_target_model.train_on_batch(mono_trg_input, mono_trg_output, sample_weight=target_mask_mono))
 
+        # TRAIN #
+        # monolingual parallel source
+        loss["parallel_source_autoencode"].append(encoder_decoder.source_to_source_model.train_on_batch(src_input, src_output, sample_weight=source_mask))
+        # monolingual parallel target
+        loss["parallel_target_autoencode"].append(encoder_decoder.target_to_target_model.train_on_batch(trg_input, trg_output, sample_weight=target_mask))
+        
         # parallel (both ways)
-        loss.append(encoder_decoder.source_to_target_model.train_on_batch(src_input, trg_output, sample_weight=target_mask))
-        loss.append(encoder_decoder.target_to_source_model.train_on_batch(trg_input, src_output, sample_weight=source_mask))
-        if counter%10==0:
-            print("batch:", counter, "loss:", sum(loss),loss, flush=True)
+        loss["parallel_source-->target"].append(encoder_decoder.source_to_target_model.train_on_batch(src_input, trg_output, sample_weight=target_mask))
+        loss["parallel_target-->source"].append(encoder_decoder.target_to_source_model.train_on_batch(trg_input, src_output, sample_weight=source_mask))
+
+        # print loss
+        if counter%50==0:
+            avg_loss=[(key,sum(value)/len(value)) if len(value)!=0 else (key,0.0) for key, value in loss.items()]
+            print("batch:", counter, "loss:", sum([v for _,v in avg_loss]),avg_loss, flush=True)
+
         counter+=1
 
 
@@ -142,6 +159,7 @@ if __name__=="__main__":
     g.add_argument('--max_seq_len', type=int, default=50, help='Maximum sequence length (characters)')
     g.add_argument('--embedding_size', type=int, default=250, help='Embedding size')
     g.add_argument('--recurrent_size', type=int, default=512, help='Size of the recurrent layers')
+    g.add_argument('--mask_output', action="store_true", default=False, help='Do not evaluate zeros at the end of sequence (padding).')
   
     
     args = parser.parse_args()

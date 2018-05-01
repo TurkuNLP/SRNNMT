@@ -1,7 +1,7 @@
 from keras.models import Sequential, Model, model_from_json
-from keras.layers import Dense, Dropout, Input, MaxPooling1D
+from keras.layers import Dense, Dropout, Input, GlobalMaxPooling1D
 from keras.layers import Bidirectional, TimeDistributed, RepeatVector
-from keras.layers import LSTM
+from keras.layers import CuDNNLSTM as LSTM
 from keras.optimizers import Adam
 
 
@@ -21,10 +21,12 @@ class Encoder(object):
 
         # encoder: inputs, embeddings, bilstm (return_sequences=True), lstm (return_sequences=False)
         inp=Input(shape=(args.max_seq_len,), name="input")
-        emb=Embedding(vocab_size, args.embedding_size, name="embeddings", mask_zero=True)(inp)
+        emb=Embedding(vocab_size, args.embedding_size, name="embeddings")(inp)
         drop=Dropout(0.2)(emb)
         blstm=Bidirectional(LSTM(args.recurrent_size, return_sequences=True))(drop)
-        vec=LSTM(2*args.recurrent_size, return_sequences=False)(blstm)
+        
+        vec=GlobalMaxPooling1D()(blstm)
+        #vec=LSTM(2*args.recurrent_size, return_sequences=False)(blstm)
 
         # ...encoder ready
         encoder=Model(inputs=[inp], outputs=[vec])
@@ -42,7 +44,7 @@ class Decoder(object):
         # decoder: RepeatVector, LSTM, Timedistributed, classification
         inp=Input((2*args.recurrent_size,))
         vectors=RepeatVector(args.max_seq_len)(inp)
-        lstm=LSTM(args.recurrent_size, return_sequences=True)(vectors)
+        lstm=LSTM(2*args.recurrent_size, return_sequences=True)(vectors)
         classification=TimeDistributed(Dense(vocab_size, activation="softmax"))(lstm)
 
         decoder=Model(inputs=[inp], outputs=[classification])
