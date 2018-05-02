@@ -60,7 +60,7 @@ def train(args):
 #    vs=data_dense.VocabularyChar()
 #    vs=data_dense.VocabularySubWord()
     vs=data_dense.WhitespaceSeparatedVocab()
-    vs.build(args.model_name+"-vocab.json", src_f_name, trg_f_name, args.monolingual_source, args. monolingual_target, force_rebuild=True) 
+    vs.build(args.model_name+"-vocab.json", src_f_name, trg_f_name, args.monolingual_source, args. monolingual_target, force_rebuild=False) 
     vs.trainable=False
 
     # build model
@@ -135,8 +135,9 @@ def train(args):
         # TODO: save
 
         # check that embeddings are shared
-        #print("src-to-src:",encoder_decoder.source_to_source_model.get_layer("model_1").get_layer("char_embeddings").get_weights()[0][5][:5])
-        #print("src-to-trg:",encoder_decoder.source_to_target_model.get_layer("model_1").get_layer("char_embeddings").get_weights()[0][5][:5])
+        #print("src-to-src:",encoder_decoder.source_to_source_model.get_layer("model_1").get_layer("embeddings").get_weights()[0][5][:5])
+        #print("src-to-trg:",encoder_decoder.source_to_target_model.get_layer("model_1").get_layer("embeddings").get_weights()[0][5][:5])
+        #print("plain source encoder",encoder_decoder.source_encoder.get_layer("embeddings").get_weights()[0][5][:5])
         
         
 
@@ -159,6 +160,7 @@ if __name__=="__main__":
     g.add_argument('--max_seq_len', type=int, default=50, help='Maximum sequence length (characters)')
     g.add_argument('--embedding_size', type=int, default=250, help='Embedding size')
     g.add_argument('--recurrent_size', type=int, default=512, help='Size of the recurrent layers')
+    g.add_argument('--learning_rate', type=float, default=0.001, help='Learning rate')
     g.add_argument('--mask_output', action="store_true", default=False, help='Do not evaluate zeros at the end of sequence (padding).')
   
     

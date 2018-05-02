@@ -170,8 +170,8 @@ if __name__=="__main__":
     src_file="data/devel_data/newstest2015.fi.subwords"
     trg_file="data/devel_data/newstest2015.en.subwords"
 
-#    src_file="data/europarl-v7.fi-en.fi"
-#    trg_file="data/europarl-v7.fi-en.en"
+#    src_file="data/europarl-v7.fi-en.fi.subwords"
+#    trg_file="data/europarl-v7.fi-en.en.subwords"
 
 
     test(src_file,trg_file,args.model,args)

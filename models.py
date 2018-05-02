@@ -85,28 +85,28 @@ class EncoderDecoderModel(object):
         encoded=self.source_encoder(src_input)
         output=self.to_source_decoder(encoded)
         self.source_to_source_model=Model(inputs=[src_input], outputs=[output])
-        optim=Adam(lr=0.001,amsgrad=True)
+        optim=Adam(lr=args.learning_rate,amsgrad=True)
         self.source_to_source_model.compile(loss="sparse_categorical_crossentropy", optimizer=optim, sample_weight_mode='temporal')
         
         # src-to-trg model
         encoded=self.source_encoder(src_input)
         output=self.to_target_decoder(encoded)
         self.source_to_target_model=Model(inputs=[src_input], outputs=[output])
-        optim=Adam(lr=0.001,amsgrad=True)
+        optim=Adam(lr=args.learning_rate,amsgrad=True)
         self.source_to_target_model.compile(loss="sparse_categorical_crossentropy", optimizer=optim, sample_weight_mode='temporal')
 
         # trg-to-trg model
         encoded=self.target_encoder(trg_input)
         output=self.to_target_decoder(encoded)
         self.target_to_target_model=Model(inputs=[trg_input], outputs=[output])
-        optim=Adam(lr=0.001,amsgrad=True)
+        optim=Adam(lr=args.learning_rate,amsgrad=True)
         self.target_to_target_model.compile(loss="sparse_categorical_crossentropy", optimizer=optim, sample_weight_mode='temporal')
 
         # trg-to-src model
         encoded=self.target_encoder(trg_input)
         output=self.to_source_decoder(encoded)
         self.target_to_source_model=Model(inputs=[trg_input], outputs=[output])
-        optim=Adam(lr=0.001,amsgrad=True)
+        optim=Adam(lr=args.learning_rate,amsgrad=True)
         self.target_to_source_model.compile(loss="sparse_categorical_crossentropy", optimizer=optim, sample_weight_mode='temporal')
 
     def save(self, model_prefix, save_only_weights=False):

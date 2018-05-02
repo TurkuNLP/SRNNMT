@@ -178,7 +178,7 @@ class WhitespaceSeparatedVocab(object):
             self.target_vocab_size=len(self.target_vocab)
         else: # Load existing
             logging.info("Loading vocabularies from "+voc_fname)
-            self.source_vocab,self.target_vocab=self.load_vocabularies(voc_fname)
+            self.load_vocabularies(voc_fname)
             self.source_vocab_size=len(self.source_vocab)
             self.target_vocab_size=len(self.target_vocab)
 
