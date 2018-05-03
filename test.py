@@ -78,7 +78,7 @@ def vectorize(src_data,trg_data,mname):
     counter=0    
     for i,(src,trg) in enumerate(data_vectorizer(minibatch_size,max_seq_len,vs,src_data,trg_data)):
         src=source_model.predict(src)
-        trg=source_model.predict(trg)
+        trg=target_model.predict(trg)
         
         # loop over items in minibatch
         for j,(src_v,trg_v) in enumerate(zip(src,trg)):
