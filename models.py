@@ -3,7 +3,7 @@ from keras.layers import Dense, Dropout, Input, GlobalMaxPooling1D
 from keras.layers import Bidirectional, TimeDistributed, RepeatVector
 from keras.layers import CuDNNLSTM as LSTM
 from keras.optimizers import Adam
-
+from keras import regularizers
 
 from keras.callbacks import Callback,ModelCheckpoint
 from keras.layers.embeddings import Embedding
@@ -23,7 +23,7 @@ class Encoder(object):
         inp=Input(shape=(args.max_seq_len,), name="input")
         emb=Embedding(vocab_size, args.embedding_size, name="embeddings")(inp)
         drop=Dropout(0.2)(emb)
-        blstm=Bidirectional(LSTM(args.recurrent_size, return_sequences=True))(drop)
+        blstm=Bidirectional(LSTM(args.recurrent_size, return_sequences=True, activity_regularizer=regularizers.l1(10e-5)))(drop)
         
         vec=GlobalMaxPooling1D()(blstm)
         #vec=LSTM(2*args.recurrent_size, return_sequences=False)(blstm)
@@ -111,7 +111,7 @@ class EncoderDecoderModel(object):
 
     def save(self, model_prefix, save_only_weights=False):
         
-        print("Savin model with prefix", model_prefix, flush=True)
+        print("Saving model with prefix", model_prefix, flush=True)
 
         # save encoders and decoders (all weights are there...)
         if not save_only_weights:
