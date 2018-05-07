@@ -4,13 +4,14 @@
 
 import sys
 import gzip
-import conllutil3 as cu
+#import conllutil3 as cu
 import html
 import glob
 import os
 
 import re
 
+ID,FORM,LEMMA,UPOS,XPOS,FEAT,HEAD,DEPREL,DEPS,MISC=range(10)
 
 min_len=5
 max_len=30
@@ -36,7 +37,7 @@ def read_conllu(dirname,max_sent=1000):
         for comm, sent in cu.read_conllu(gzip.open(fname,"rt",encoding="utf-8")):
             total_count+=1
             if min_len<=len(sent)<=max_len:
-                txt=" ".join(line[cu.FORM] for line in sent)
+                txt=" ".join(line[FORM] for line in sent)
                 if not good_text(txt):
                     continue
                 if txt in uniq:
@@ -91,10 +92,38 @@ def read_cow(dirname,max_sent=1000):
             break
             
     print("cow parsebank:",total_count,file=sys.stderr)
-    print("cow parsebank yielded:",counter,file=sys.stderr)  
+    print("cow parsebank yielded:",counter,file=sys.stderr)
+
+def read_plain(dirname,max_sent=1000):
+    fnames=glob.glob(dirname+"/*.gz")
+    fnames.sort()
+    print(fnames,file=sys.stderr)
+    total_count=0
+    counter=0
+    uniq=set()
+    for fname in fnames:
+        print(fname,file=sys.stderr,flush=True)
+        for sent in gzip.open(fname,"rt",encoding="utf-8"): # one sentence per line
+            sent=sent.strip()
+            total_count+=1
+            if min_len<=len(sent.split(" "))<=max_len:
+                if not good_text(sent):
+                    continue
+                if sent.lower() in uniq:
+                    continue
+                yield sent
+                uniq.add(sent.lower())
+                counter+=1
+            if max_sent!=0 and counter>=max_sent:
+                break
+        if max_sent!=0 and counter>=max_sent:
+            break
+            
+    print("total number of sentences:",total_count,file=sys.stderr)
+    print("yielded",counter,"sentences",file=sys.stderr)  
         
         
-preprocessors={"conllu":read_conllu,"cow":read_cow}
+preprocessors={"conllu":read_conllu,"cow":read_cow,"plain":read_plain}
 def iter_wrapper(args):
 
     my_preprocessor=preprocessors[args.preprocessor]
@@ -118,7 +147,7 @@ def filter_data(args):
     counter=0
     for i,sent in enumerate(iter_wrapper(args)):       
        
-        length=len(sent.split())
+        length=len(sent.split()) # simple whitespace tokenization, just used to limit comparisons 
         print(sent,file=file_dict["sent_len{N}".format(N=length)])        
             
         counter+=1
@@ -139,7 +168,7 @@ if __name__=="__main__":
     g=parser.add_argument_group("Reguired arguments")
     
     g.add_argument('--inp', type=str, help='Input directory')
-    g.add_argument('--preprocessor', type=str, help='Preprocessor to be used, options: conllu or cow')
+    g.add_argument('--preprocessor', type=str, help='Preprocessor to be used, options: conllu, cow or plain (one sentence per line)')
     g.add_argument('--outdir', type=str, help='Output directory name (with path)')
     g.add_argument('--out_prefix', type=str, help='Output file prefix (for example "fi" or "en")')
     g.add_argument('--max_sent', type=int, default=1000, help='Give max sentences to read, zero for all, default={n}'.format(n=1000))
