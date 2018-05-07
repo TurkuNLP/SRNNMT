@@ -1,10 +1,14 @@
 # python 3
 # read finnish and english text file and turn these into dense vectors
-from keras.models import Sequential, Graph, Model, model_from_json
-from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten
-from keras.layers.recurrent import GRU
-from keras.callbacks import Callback,ModelCheckpoint
-from keras.layers.embeddings import Embedding
+
+import logging
+logging.getLogger('tensorflow').disabled = True # this removes the annoying 'Level 1:tensorflow:Registering' prints
+
+from keras.models import Sequential, Model, model_from_json
+#from keras.layers import Dense, Dropout, Activation, Merge, Input, merge, Flatten
+#from keras.layers.recurrent import GRU
+#from keras.callbacks import Callback,ModelCheckpoint
+#from keras.layers.embeddings import Embedding
 import numpy as np
 import sys
 import math
@@ -19,108 +23,109 @@ import array
 import data_dense
 import re
 
-from test import load_model
+from keras.preprocessing.sequence import pad_sequences
+
+import tensorflow as tf
+### Only needed for me, not to block the whole GPU, you don't need this stuff
+from keras.backend.tensorflow_backend import set_session
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.2
+set_session(tf.Session(config=config))
+### ---end of weird stuff
 
 # TODO: expects 'fi' and 'en' prefixes in the input data_dir, could be changed to 'src' and 'trg'
 
-            
-def fill_batch(minibatch_size,max_sent_len,vs,data_iterator,ngrams):
-    """ Iterates over the data_iterator and fills the index matrices with fresh data
-        ms = matrices, vs = vocabularies
-    """
-    # custom fill_batch to return also sentences...
 
-    ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
-    batchsize,max_sentence_len=ms.source_ngrams[ngrams[0]].shape #just pick any one of these really
-    row=0
-    src_sents=[]
-    trg_sents=[]
-    for (sent_src,sent_target),target in data_iterator:
-        src_sents.append(sent_src)
-        trg_sents.append(sent_target)
-        for N in ngrams:
-            for j,ngram in enumerate(data_dense.ngram_iterator(sent_src,N,max_sent_len)):
-                ms.source_ngrams[N][row,j]=vs.get_id(ngram,vs.source_ngrams[N])
-            for j,ngram in enumerate(data_dense.ngram_iterator(sent_target,N,max_sent_len)):
-                ms.target_ngrams[N][row,j]=vs.get_id(ngram,vs.target_ngrams[N])
-        ms.src_len[row]=len(sent_src.strip().split())
-        ms.trg_len[row]=len(sent_target.strip().split())
-        ms.targets[row]=target
-        row+=1
-        if row==batchsize:
-#            print(ms.matrix_dict, ms.targets)
-            yield ms.matrix_dict, ms.targets, src_sents, trg_sents
-            src_sents=[]
-            trg_sents=[]
-            row=0
-            ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
+def load_model(args):
+    with open(args.model+".json","r") as f:
+        encoder_model=model_from_json(f.read())
+        encoder_model.load_weights(args.model+".h5")
+        print(encoder_model.summary())
+        print(encoder_model.outputs)
+        
+    return encoder_model
+
+
+
+def data_vectorizer(batch, max_seq_len, vs, data_file, args):
+
+    if args.subword_model is not None: # init sp model
+        print("loading subword model from", args.subword_model+".model")
+        import sentencepiece as spm
+        sp = spm.SentencePieceProcessor()
+        sp.Load(args.subword_model+".model")
     else:
-        if row>0:
-            yield ms.matrix_dict, ms.targets, src_sents, trg_sents
-        
+        assert False, "Remember to give subword model!" # TODO
 
-def iter_wrapper(fi,en,max_sent=10000):
-    counter=0
-    for fin_sent,eng_sent in itertools.zip_longest(fi,en,fillvalue="#None#"): # shorter padded with 'None'
-        yield (fin_sent,eng_sent),1.0
-        counter+=1
-        if max_sent!=0 and counter==max_sent:
+    sentences=[]
+    for i, sent in enumerate(data_file):
+
+        if args.max_pairs!=0 and i==args.max_pairs:
             break
-        
+
+        # firs we need the subword model to turn sentence into subwords
+        # TODO
+        if args.subword_model:
+            sent=" ".join(sp.EncodeAsPieces(sent.strip().lower()))
+
+        # now we can use vocabulary (whitespacevocab) to turn pieces into numbers the encoder understands
+        if args.prefix=="fi":
+            sent_vectorized, _=vs.sentence_vectorizer(sent, "")
+        elif args.prefix=="en":
+            _, sent_vectorized=vs.sentence_vectorizer("", sent)
+        else:
+            assert False, "Cannot decide vectorizer from prefix!" # TODO fix this
+            
+        sentences.append(sent_vectorized)
+
+        if len(sentences)==batch:
+            v_data=pad_sequences(np.array(sentences), maxlen=max_seq_len, padding='post', truncating='post')
+            yield v_data
+            sentences=[]
+    if sentences:
+        yield pad_sequences(np.array(sentences), maxlen=max_seq_len, padding='post', truncating='post')
+
+
 
 def vectorize(args):
 
     # read and create files
-    
-    fi_inp=gzip.open(args.data_dir+"/fi_len{N}.txt.gz".format(N=args.length),"rt",encoding="utf-8")
-    en_inp=gzip.open(args.data_dir+"/en_len{N}.txt.gz".format(N=args.length),"rt",encoding="utf-8")
-    
-    fi_outp=open(args.data_dir+"/fi_len{N}.npy".format(N=args.length),"wb")
-    en_outp=open(args.data_dir+"/en_len{N}.npy".format(N=args.length),"wb")
+    input_file=gzip.open(args.data_dir+"/{prefix}_len{N}.txt.gz".format(prefix=args.prefix, N=args.length),"rt",encoding="utf-8")
+    output_file=open(args.data_dir+"/{prefix}_len{N}.npy".format(prefix=args.prefix, N=args.length),"wb")
     
 
     minibatch_size=100 
-    ngrams=(4,) # TODO: read this from somewhere
 
     #Read vocabularies
-    vs=data_dense.read_vocabularies(args.vocabulary,"xxx","xxx",False,ngrams) 
+    vs=data_dense.WhitespaceSeparatedVocab()
+    vs.load_vocabularies(args.vocabulary+"-vocab.json") 
     vs.trainable=False
     
     # load model
-    trained_model=load_model(args.model)
-    output_size=trained_model.get_layer('source_dense').output_shape[1]
-    max_sent_len=trained_model.get_layer('source_ngrams_{n}'.format(n=ngrams[0])).output_shape[1]
-    print(output_size,max_sent_len,file=sys.stderr)
-    
-    # build matrices
-    ms=data_dense.Matrices(minibatch_size,max_sent_len,ngrams)
+    encoder_model=load_model(args)
+    max_seq_len=50 # TODO
+    output_size=1024 # TODO
+
     
 
     # get vectors
     # for loop over minibatches
     counter=0
-    for i,(mx,targets,src_data,trg_data) in enumerate(fill_batch(minibatch_size,max_sent_len,vs,iter_wrapper(fi_inp,en_inp,max_sent=args.max_pairs),ngrams)):        
-        src,trg=trained_model.predict(mx) # shape = (minibatch_size,gru_width)
+    for i,vbatch in enumerate(data_vectorizer(minibatch_size, max_seq_len, vs, input_file, args)):
+        predictions=encoder_model.predict(vbatch) # shape = (minibatch_size,gru_width)
         # loop over items in minibatch
-        for j,(src_v,trg_v) in enumerate(zip(src,trg)):
-            if j>=len(src_data): # empty padding of the minibatch
-                break
-            norm_src=src_v/np.linalg.norm(src_v)
-            norm_trg=trg_v/np.linalg.norm(trg_v)
-            if src_data[j]!="#None#":
-                norm_src.astype(np.float32).tofile(fi_outp)
-                    
-            if trg_data[j]!="#None#":
-                norm_trg.astype(np.float32).tofile(en_outp)
+        for j,vector in enumerate(predictions): # does it matter that the last batch is smaller?
+            norm_vector=vector/np.linalg.norm(vector)
+            norm_vector.astype(np.float32).tofile(output_file)
             
             counter+=1
             if counter%100000==0:
-                print("Vectorized {c} sentence pairs".format(c=counter),file=sys.stderr,flush=True)
+                print("Vectorized {c} sentences".format(c=counter),file=sys.stderr,flush=True)
                 
-    fi_inp.close()
-    en_inp.close()
-    fi_outp.close()
-    en_outp.close()
+    input_file.close()
+    output_file.close()
+
+    print("Vectorized {c} sentences".format(c=counter),file=sys.stderr,flush=True)
 
 
 if __name__=="__main__":
@@ -131,6 +136,8 @@ if __name__=="__main__":
     g=parser.add_argument_group("Reguired arguments")
     g.add_argument('-m', '--model', type=str, help='Give model name')
     g.add_argument('-v', '--vocabulary', type=str, help='Give vocabulary file')
+    g.add_argument('--prefix', type=str, help='Model to turn text into subword units (empty for no subwords)')
+    g.add_argument('--subword_model', type=str, help='Model to turn text into subword units (empty for no subwords)')
     g.add_argument('--data_dir', type=str, help='Directory where text files are and where vectors should be written.')
     g.add_argument('-l', '--length', type=str, help='Sentence length, tells us which files to read')
     g.add_argument('--max_pairs', type=int, default=1000, help='Give max pairs of sentences to read, zero for all, default={n}'.format(n=1000))
@@ -138,7 +145,7 @@ if __name__=="__main__":
     
     args = parser.parse_args()
 
-    if args.model==None or args.vocabulary==None or args.length==None or args.data_dir==None:
+    if args.model==None or args.vocabulary==None or args.length==None or args.data_dir==None or args.prefix==None:
         parser.print_help()
         sys.exit(1)
 
@@ -146,6 +153,8 @@ if __name__=="__main__":
     print("Vectorizing",number,"sentences",file=sys.stderr)
 
     vectorize(args)
+
+    print("Done.")
 
 #    for s in iter_wrapper("/home/jmnybl/git_checkout/SRNNMT/parsebank","/home/jmnybl/git_checkout/SRNNMT/EN-COW",max_sent=10000000):
 #        pass

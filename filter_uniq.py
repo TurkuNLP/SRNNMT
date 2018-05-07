@@ -147,7 +147,7 @@ def filter_data(args):
     counter=0
     for i,sent in enumerate(iter_wrapper(args)):       
        
-        length=len(sent.split()) # simple whitespace tokenization, just used to limit comparisons 
+        length=len(sent.split(" ")) # simple whitespace tokenization, just used to limit comparisons 
         print(sent,file=file_dict["sent_len{N}".format(N=length)])        
             
         counter+=1
