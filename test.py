@@ -82,7 +82,7 @@ def vectorize(src_data,trg_data,mname):
         
         # loop over items in minibatch
         for j,(src_v,trg_v) in enumerate(zip(src,trg)):
-#            print("Orig:",src_v)
+#            print("Orig:"," ".join([str(v) for v in src_v]))
 #            print("Norm:",np.linalg.norm(src_v))
 #            print("Normalized:",src_v/np.linalg.norm(src_v))
             src_vectors[counter]=src_v/np.linalg.norm(src_v)
@@ -102,6 +102,7 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
 
     ranks=[]
     all_similarities=[] # list of sorted lists
+    accuracy=0
 
     # run dot product
     for i in range(len(src_vectors)):
@@ -115,6 +116,8 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
 #            continue
         result_idx=[idx for (sim,idx,txt) in results]
         ranks.append(result_idx.index(i)+1)
+        if result_idx.index(i)+1==1:
+            accuracy+=1
         if verbose:
             print("source:",i,print_text(src_data[i]),np.dot(src_vectors[i],trg_vectors[i]))
             print("reference:",print_text(trg_data[i]))
@@ -124,7 +127,8 @@ def rank(src_vectors,trg_vectors,src_data,trg_data,verbose=True):
             print("****")
 
     print("Keras:")
-    print("Avg:",sum(ranks)/len(ranks))
+    print("Average rank:",sum(ranks)/len(ranks))
+    print("Top-1 accuracy:",accuracy/len(ranks)*100)
     print("#num:",len(ranks))
     
     return all_similarities
@@ -160,6 +164,7 @@ if __name__=="__main__":
     g.add_argument('--max_pairs', type=int, default=1000, help='Give vocabulary file, default={n}'.format(n=1000))
     g.add_argument('--monolingual_source', action='store_true', default=False, help='Run monolingual evaluation (src against src similarities)')
     g.add_argument('--monolingual_target', action='store_true', default=False, help='Run monolingual evaluation (trg against trg similarities)')
+    g.add_argument('--europarl', action='store_true', default=False, help='Test on europarl data')
     
     args = parser.parse_args()
 
@@ -170,8 +175,9 @@ if __name__=="__main__":
     src_file="data/devel_data/newstest2015.fi.subwords"
     trg_file="data/devel_data/newstest2015.en.subwords"
 
-#    src_file="data/europarl-v7.fi-en.fi.subwords"
-#    trg_file="data/europarl-v7.fi-en.en.subwords"
+    if args.europarl:
+        src_file="data/europarl-v7.fi-en.fi.subwords"
+        trg_file="data/europarl-v7.fi-en.en.subwords"
 
 
     test(src_file,trg_file,args.model,args)
